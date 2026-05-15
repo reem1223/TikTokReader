@@ -1,0 +1,16 @@
+{
+  "name": "tiktok-live-reader",
+  "version": "1.0.0",
+  "description": "TikTok livestream comment reader with text-to-speech",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=16.x"
+  },
+  "dependencies": {
+    "tiktok-live-connector": "^1.1.8",
+    "ws": "^8.16.0"
+  }
+}

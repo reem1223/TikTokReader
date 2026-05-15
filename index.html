@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TikTok Live Comment Reader</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f0f;
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #25f4ee, #fe2c55);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: #888;
+            margin-bottom: 30px;
+            font-size: 0.9rem;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #1a1a1a;
+            color: #fff;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            border-color: #25f4ee;
+        }
+
+        button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s;
+        }
+
+        button:active {
+            transform: scale(0.96);
+        }
+
+        #connectBtn {
+            background: linear-gradient(135deg, #25f4ee, #fe2c55);
+            color: #fff;
+        }
+
+        #connectBtn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #disconnectBtn {
+            background: #333;
+            color: #fff;
+            display: none;
+        }
+
+        .settings {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .settings label {
+            color: #aaa;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .settings select, .settings input[type="range"] {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        .status {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .status.disconnected {
+            background: #2a1a1a;
+            color: #fe2c55;
+        }
+
+        .status.connecting {
+            background: #2a2a1a;
+            color: #f0c040;
+        }
+
+        .status.connected {
+            background: #1a2a1a;
+            color: #25f4ee;
+        }
+
+        .comments-container {
+            width: 100%;
+            max-width: 600px;
+            flex: 1;
+            background: #1a1a1a;
+            border-radius: 12px;
+            border: 1px solid #262626;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .comments-header {
+            padding: 14px 20px;
+            border-bottom: 1px solid #262626;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #aaa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .comment-count {
+            background: #333;
+            padding: 2px 10px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+        }
+
+        .comments-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            max-height: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .comment-item {
+            padding: 10px 14px;
+            border-radius: 8px;
+            animation: fadeIn 0.3s ease;
+            background: #222;
+        }
+
+        .comment-item.reading {
+            background: #1a2a2a;
+            border-left: 3px solid #25f4ee;
+        }
+
+        .comment-item.rtl {
+            direction: rtl;
+            text-align: right;
+        }
+
+        .comment-item.rtl.reading {
+            border-left: none;
+            border-right: 3px solid #25f4ee;
+        }
+
+        .comment-item.gift {
+            background: linear-gradient(135deg, #2a1f0a, #1a1a1a);
+            border: 1px solid #f5a623;
+        }
+
+        .comment-item.gift.reading {
+            border-right: 3px solid #f5a623;
+            border-left: none;
+        }
+
+        .gift-icon {
+            width: 24px;
+            height: 24px;
+            vertical-align: middle;
+            margin-right: 6px;
+            border-radius: 4px;
+        }
+
+        .gift-badge {
+            display: inline-block;
+            font-size: 0.65rem;
+            padding: 1px 6px;
+            border-radius: 4px;
+            margin-left: 6px;
+            font-weight: 600;
+            background: #3a2a0a;
+            color: #f5a623;
+        }
+
+        .gift-text {
+            font-size: 0.95rem;
+            color: #f5a623;
+            direction: rtl;
+            text-align: right;
+        }
+
+        .comment-user {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #25f4ee;
+            margin-bottom: 2px;
+        }
+
+        .comment-text {
+            font-size: 0.95rem;
+            color: #ddd;
+        }
+
+        .comment-time {
+            font-size: 0.7rem;
+            color: #555;
+            margin-top: 4px;
+        }
+
+        .lang-badge {
+            display: inline-block;
+            font-size: 0.65rem;
+            padding: 1px 6px;
+            border-radius: 4px;
+            margin-left: 6px;
+            font-weight: 500;
+        }
+
+        .lang-badge.en {
+            background: #1a2a3a;
+            color: #60a5fa;
+        }
+
+        .lang-badge.he {
+            background: #2a2a1a;
+            color: #facc15;
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            color: #555;
+            font-size: 0.9rem;
+        }
+
+        .empty-state svg {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 12px;
+            opacity: 0.3;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .mute-toggle {
+            background: #333;
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .mute-toggle.muted {
+            background: #2a1a1a;
+            color: #fe2c55;
+        }
+
+        .voice-panel {
+            width: 100%;
+            max-width: 600px;
+            background: #1a1a1a;
+            border: 1px solid #262626;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+        }
+
+        .voice-panel h3 {
+            font-size: 0.9rem;
+            color: #aaa;
+            margin-bottom: 12px;
+        }
+
+        .voice-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .voice-row label {
+            min-width: 70px;
+            font-size: 0.85rem;
+            color: #ccc;
+            font-weight: 600;
+        }
+
+        .voice-row select {
+            flex: 1;
+            min-width: 180px;
+            background: #222;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        .voice-row .test-btn {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            background: #333;
+            color: #fff;
+            border-radius: 6px;
+        }
+
+        .speed-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        .speed-row label {
+            font-size: 0.85rem;
+            color: #ccc;
+            min-width: 70px;
+            font-weight: 600;
+        }
+
+        .speed-row input[type="range"] {
+            flex: 1;
+            accent-color: #25f4ee;
+        }
+
+        .speed-val {
+            font-size: 0.8rem;
+            color: #888;
+            min-width: 35px;
+        }
+
+        .builtin-label {
+            font-size: 0.8rem;
+            color: #888;
+            padding: 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .builtin-label .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #25f4ee;
+            display: inline-block;
+        }
+
+        .comment-item.join {
+            background: linear-gradient(135deg, #0a2a1a, #1a1a1a);
+            border: 1px solid #25f4ee;
+        }
+
+        .comment-item.join.reading {
+            border-right: 3px solid #25f4ee;
+            border-left: none;
+        }
+
+        .join-badge {
+            display: inline-block;
+            font-size: 0.65rem;
+            padding: 1px 6px;
+            border-radius: 4px;
+            margin-left: 6px;
+            font-weight: 600;
+            background: #0a2a2a;
+            color: #25f4ee;
+        }
+
+        .join-text {
+            font-size: 0.95rem;
+            color: #25f4ee;
+            direction: rtl;
+            text-align: right;
+        }
+
+        .msg-template-row {
+            margin-top: 12px;
+            border-top: 1px solid #262626;
+            padding-top: 12px;
+        }
+
+        .msg-template-row label {
+            font-size: 0.85rem;
+            color: #ccc;
+            font-weight: 600;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .msg-template-row input[type="text"] {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 6px;
+            border: 1px solid #333;
+            background: #222;
+            color: #fff;
+            font-size: 0.9rem;
+            direction: rtl;
+        }
+
+        .msg-template-row .hint {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .msg-template-row .hint code {
+            background: #333;
+            padding: 1px 5px;
+            border-radius: 3px;
+            color: #f5a623;
+        }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .toggle-row label {
+            font-size: 0.85rem;
+            color: #ccc;
+            font-weight: 600;
+            min-width: 130px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 42px;
+            height: 22px;
+            display: inline-block;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #333;
+            border-radius: 22px;
+            transition: 0.2s;
+        }
+
+        .toggle-slider:before {
+            content: '';
+            position: absolute;
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background: #888;
+            border-radius: 50%;
+            transition: 0.2s;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: #25f4ee;
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(20px);
+            background: #fff;
+        }
+
+        .toggles-section {
+            margin-top: 12px;
+            border-top: 1px solid #262626;
+            padding-top: 12px;
+        }
+
+        .toggles-section h4 {
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <h1>TikTok Live Reader</h1>
+    <p class="subtitle">Connect to any TikTok livestream and hear comments read aloud</p>
+
+    <div class="controls">
+        <input type="text" id="usernameInput" placeholder="Enter TikTok username (without @)" />
+        <button id="connectBtn" onclick="connect()">Connect</button>
+        <button id="disconnectBtn" onclick="disconnect()">Disconnect</button>
+    </div>
+
+    <div class="voice-panel">
+        <h3>Voice Settings</h3>
+        <div class="voice-row">
+            <label>English:</label>
+            <select id="voiceEn"></select>
+            <button class="test-btn" onclick="testVoice('en')">Test</button>
+        </div>
+        <div class="voice-row">
+            <label>Hebrew:</label>
+            <span class="builtin-label"><span class="dot"></span>Built-in Google TTS (works for everyone)</span>
+            <button class="test-btn" onclick="testHebrewVoice()">Test</button>
+        </div>
+        <div class="speed-row">
+            <label>Speed:</label>
+            <input type="range" id="rateRange" min="0.5" max="2" step="0.1" value="1" oninput="document.getElementById('speedVal').textContent = this.value + 'x'" />
+            <span class="speed-val" id="speedVal">1x</span>
+        </div>
+
+        <div class="toggles-section">
+            <h4>Read Aloud</h4>
+            <div class="toggle-row">
+                <label>💬 Comments</label>
+                <span class="toggle-switch">
+                    <input type="checkbox" id="toggleComments" checked>
+                    <span class="toggle-slider"></span>
+                </span>
+            </div>
+            <div class="toggle-row">
+                <label>🎁 Gifts</label>
+                <span class="toggle-switch">
+                    <input type="checkbox" id="toggleGifts" checked>
+                    <span class="toggle-slider"></span>
+                </span>
+            </div>
+            <div class="toggle-row">
+                <label>👋 Joining Users</label>
+                <span class="toggle-switch">
+                    <input type="checkbox" id="toggleJoins" checked>
+                    <span class="toggle-slider"></span>
+                </span>
+            </div>
+        </div>
+
+        <div class="msg-template-row">
+            <label>🎁 Gift Message:</label>
+            <input type="text" id="giftMsgTemplate" value="תודה <username> על המתנה <gift>" />
+            <div class="hint">Use <code>&lt;username&gt;</code> for the gifter's name and <code>&lt;gift&gt;</code> for the gift name</div>
+        </div>
+        <div class="msg-template-row">
+            <label>👋 Join Message:</label>
+            <input type="text" id="joinMsgTemplate" value="<username> הצטרף לשידור" />
+            <div class="hint">Use <code>&lt;username&gt;</code> for the joining user's name</div>
+        </div>
+
+        <div style="margin-top: 12px; display: flex; justify-content: center;">
+            <button class="mute-toggle" id="muteBtn" onclick="toggleMute()">
+                🔊 Reading Aloud
+            </button>
+        </div>
+    </div>
+
+    <div class="status disconnected" id="statusBadge">Disconnected</div>
+
+    <div class="comments-container">
+        <div class="comments-header">
+            <span>Live Comments</span>
+            <span class="comment-count" id="commentCount">0</span>
+        </div>
+        <div class="comments-list" id="commentsList">
+            <div class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span>Comments will appear here</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let isMuted = false;
+        let commentCount = 0;
+        let speechQueue = [];
+        let isSpeaking = false;
+        let currentAudio = null;
+
+        // Hebrew character detection regex
+        const hebrewRegex = /[\u0590-\u05FF]/;
+
+        function detectLang(text) {
+            return hebrewRegex.test(text) ? 'he' : 'en';
+        }
+
+        // --- Settings persistence via localStorage ---
+        const STORAGE_KEY = 'tiktok-reader-settings';
+
+        function saveSettings() {
+            const settings = {
+                voiceEn: document.getElementById('voiceEn').value,
+                rate: document.getElementById('rateRange').value,
+                giftMsg: document.getElementById('giftMsgTemplate').value,
+                joinMsg: document.getElementById('joinMsgTemplate').value,
+                toggleComments: document.getElementById('toggleComments').checked,
+                toggleGifts: document.getElementById('toggleGifts').checked,
+                toggleJoins: document.getElementById('toggleJoins').checked,
+                muted: isMuted,
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+        }
+
+        function loadSettings() {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return null;
+            try { return JSON.parse(raw); } catch { return null; }
+        }
+
+        function applySettings() {
+            const s = loadSettings();
+            if (!s) return;
+            const enSelect = document.getElementById('voiceEn');
+            if (s.voiceEn && enSelect.querySelector(`option[value="${s.voiceEn}"]`)) {
+                enSelect.value = s.voiceEn;
+            }
+            if (s.rate) {
+                document.getElementById('rateRange').value = s.rate;
+                document.getElementById('speedVal').textContent = s.rate + 'x';
+            }
+            if (s.giftMsg !== undefined) document.getElementById('giftMsgTemplate').value = s.giftMsg;
+            if (s.joinMsg !== undefined) document.getElementById('joinMsgTemplate').value = s.joinMsg;
+            if (s.toggleComments !== undefined) document.getElementById('toggleComments').checked = s.toggleComments;
+            if (s.toggleGifts !== undefined) document.getElementById('toggleGifts').checked = s.toggleGifts;
+            if (s.toggleJoins !== undefined) document.getElementById('toggleJoins').checked = s.toggleJoins;
+            if (s.muted) {
+                isMuted = true;
+                const btn = document.getElementById('muteBtn');
+                btn.textContent = '🔇 Muted';
+                btn.classList.add('muted');
+            }
+        }
+
+        // Populate English voice dropdown
+        function loadVoices() {
+            const voices = speechSynthesis.getVoices();
+            const enSelect = document.getElementById('voiceEn');
+            enSelect.innerHTML = '';
+
+            let enDefault = -1;
+            let googleUsIdx = -1;
+
+            voices.forEach((voice, i) => {
+                const lang = voice.lang.toLowerCase();
+                const label = `${voice.name} (${voice.lang})`;
+                const opt = document.createElement('option');
+                opt.value = i;
+                opt.textContent = label;
+                enSelect.appendChild(opt);
+                if (lang.startsWith('en') && enDefault === -1) enDefault = i;
+                if (voice.name === 'Google US English') googleUsIdx = i;
+            });
+
+            // Prefer Google US English, fall back to first English voice
+            if (googleUsIdx !== -1) enSelect.value = googleUsIdx;
+            else if (enDefault !== -1) enSelect.value = enDefault;
+
+            // Apply saved settings (overrides defaults)
+            applySettings();
+        }
+
+        speechSynthesis.onvoiceschanged = loadVoices;
+        loadVoices();
+
+        // Fetch Hebrew TTS audio from server (Google Translate TTS)
+        async function fetchServerTTS(text, lang) {
+            const resp = await fetch('/api/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, lang })
+            });
+            const data = await resp.json();
+            if (data.error) throw new Error(data.error);
+            return data.audio;
+        }
+
+        function playBase64Audio(base64, rate, onEnd) {
+            if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+            const audio = new Audio('data:audio/mp3;base64,' + base64);
+            currentAudio = audio;
+            audio.playbackRate = rate;
+            audio.onended = () => { currentAudio = null; if (onEnd) onEnd(); };
+            audio.onerror = () => { currentAudio = null; if (onEnd) onEnd(); };
+            audio.play();
+        }
+
+        // Test English browser voice
+        function testVoice(lang) {
+            speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance('Hello, this is a voice test');
+            const voices = speechSynthesis.getVoices();
+            const idx = document.getElementById('voiceEn').value;
+            if (voices[idx]) utterance.voice = voices[idx];
+            utterance.rate = parseFloat(document.getElementById('rateRange').value);
+            speechSynthesis.speak(utterance);
+        }
+
+        // Test Hebrew server voice
+        async function testHebrewVoice() {
+            try {
+                const audio = await fetchServerTTS('שלום, זהו מבחן קול', 'he');
+                playBase64Audio(audio, parseFloat(document.getElementById('rateRange').value));
+            } catch (e) {
+                alert('Hebrew TTS test failed: ' + e.message);
+            }
+        }
+
+        function setStatus(state, text) {
+            const badge = document.getElementById('statusBadge');
+            badge.className = `status ${state}`;
+            badge.textContent = text;
+        }
+
+        function connect() {
+            const username = document.getElementById('usernameInput').value.trim().replace('@', '');
+            if (!username) return;
+
+            document.getElementById('connectBtn').disabled = true;
+            setStatus('connecting', `Connecting to @${username}...`);
+
+            // Connect to our WebSocket server (dynamic URL for any host)
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${location.host}`);
+
+            ws.onopen = () => {
+                ws.send(JSON.stringify({ type: 'connect', username }));
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+
+                if (data.type === 'connected') {
+                    setStatus('connected', `Connected to @${username} — ${data.roomInfo || 'Live'}`);
+                    document.getElementById('connectBtn').style.display = 'none';
+                    document.getElementById('disconnectBtn').style.display = 'inline-block';
+                    // Clear empty state
+                    const list = document.getElementById('commentsList');
+                    const empty = list.querySelector('.empty-state');
+                    if (empty) empty.remove();
+                }
+
+                if (data.type === 'chat') {
+                    addComment(data.user, data.comment);
+                }
+
+                if (data.type === 'gift') {
+                    addGift(data.user, data.giftName, data.giftCount, data.giftPictureUrl);
+                }
+
+                if (data.type === 'member') {
+                    addJoin(data.user);
+                }
+
+                if (data.type === 'error') {
+                    setStatus('disconnected', `Error: ${data.message}`);
+                    document.getElementById('connectBtn').disabled = false;
+                }
+            };
+
+            ws.onclose = () => {
+                setStatus('disconnected', 'Disconnected');
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('connectBtn').style.display = 'inline-block';
+                document.getElementById('disconnectBtn').style.display = 'none';
+            };
+
+            ws.onerror = () => {
+                setStatus('disconnected', 'Connection error — is the server running?');
+                document.getElementById('connectBtn').disabled = false;
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.send(JSON.stringify({ type: 'disconnect' }));
+                ws.close();
+                ws = null;
+            }
+            speechSynthesis.cancel();
+            speechQueue = [];
+            isSpeaking = false;
+            setStatus('disconnected', 'Disconnected');
+            document.getElementById('connectBtn').disabled = false;
+            document.getElementById('connectBtn').style.display = 'inline-block';
+            document.getElementById('disconnectBtn').style.display = 'none';
+        }
+
+        function addGift(user, giftName, giftCount, giftPicUrl) {
+            commentCount++;
+            document.getElementById('commentCount').textContent = commentCount;
+
+            const list = document.getElementById('commentsList');
+            const item = document.createElement('div');
+            item.className = 'comment-item gift rtl';
+
+            const imgTag = giftPicUrl ? `<img class="gift-icon" src="${escapeHtml(giftPicUrl)}" alt="" />` : '🎁';
+            const countText = giftCount > 1 ? ` x${giftCount}` : '';
+            const template = document.getElementById('giftMsgTemplate').value || 'תודה <username> על המתנה <gift>';
+            const hebrewMsg = template
+                .replace(/<username>/gi, user)
+                .replace(/<gift>/gi, giftName + countText);
+
+            item.innerHTML = `
+                <div class="comment-user">@${escapeHtml(user)} <span class="gift-badge">🎁 GIFT</span></div>
+                <div class="gift-text">${imgTag} ${escapeHtml(hebrewMsg)}</div>
+                <div class="comment-time">${new Date().toLocaleTimeString()}</div>
+            `;
+            list.appendChild(item);
+            list.scrollTop = list.scrollHeight;
+
+            if (!isMuted && document.getElementById('toggleGifts').checked) {
+                speechQueue.push({ user, text: hebrewMsg, lang: 'he', isGift: true, element: item });
+                processQueue();
+            }
+        }
+
+        function addJoin(user) {
+            commentCount++;
+            document.getElementById('commentCount').textContent = commentCount;
+
+            const list = document.getElementById('commentsList');
+            const item = document.createElement('div');
+            item.className = 'comment-item join rtl';
+
+            const template = document.getElementById('joinMsgTemplate').value || '<username> הצטרף לשידור';
+            const hebrewMsg = template.replace(/<username>/gi, user);
+
+            item.innerHTML = `
+                <div class="comment-user">@${escapeHtml(user)} <span class="join-badge">👋 JOIN</span></div>
+                <div class="join-text">${escapeHtml(hebrewMsg)}</div>
+                <div class="comment-time">${new Date().toLocaleTimeString()}</div>
+            `;
+            list.appendChild(item);
+            list.scrollTop = list.scrollHeight;
+
+            if (!isMuted && document.getElementById('toggleJoins').checked) {
+                speechQueue.push({ user, text: hebrewMsg, lang: 'he', isGift: true, element: item });
+                processQueue();
+            }
+        }
+
+        function addComment(user, text) {
+            commentCount++;
+            document.getElementById('commentCount').textContent = commentCount;
+
+            const lang = detectLang(text);
+            const list = document.getElementById('commentsList');
+            const item = document.createElement('div');
+            item.className = 'comment-item' + (lang === 'he' ? ' rtl' : '');
+
+            const langLabel = lang === 'he' ? 'HE' : 'EN';
+            const langClass = lang;
+            item.innerHTML = `
+                <div class="comment-user">@${escapeHtml(user)} <span class="lang-badge ${langClass}">${langLabel}</span></div>
+                <div class="comment-text">${escapeHtml(text)}</div>
+                <div class="comment-time">${new Date().toLocaleTimeString()}</div>
+            `;
+            list.appendChild(item);
+            list.scrollTop = list.scrollHeight;
+
+            // Queue for TTS
+            if (!isMuted && document.getElementById('toggleComments').checked) {
+                speechQueue.push({ user, text, lang, element: item });
+                processQueue();
+            }
+        }
+
+        async function processQueue() {
+            if (isSpeaking || speechQueue.length === 0) return;
+
+            isSpeaking = true;
+            const { user, text, lang, isGift, element } = speechQueue.shift();
+            element.classList.add('reading');
+
+            const rate = parseFloat(document.getElementById('rateRange').value);
+            const done = () => {
+                element.classList.remove('reading');
+                isSpeaking = false;
+                processQueue();
+            };
+
+            if (lang === 'he') {
+                // Hebrew: use server-side Google Translate TTS
+                try {
+                    const fullText = isGift ? text : `${user} אומר: ${text}`;
+                    const audio = await fetchServerTTS(fullText, 'he');
+                    playBase64Audio(audio, rate, done);
+                } catch (e) {
+                    console.error('Hebrew TTS failed:', e);
+                    done();
+                }
+            } else {
+                // English: use browser SpeechSynthesis
+                const fullText = isGift ? text : `${user} says: ${text}`;
+                const utterance = new SpeechSynthesisUtterance(fullText);
+                const voices = speechSynthesis.getVoices();
+                const idx = document.getElementById('voiceEn').value;
+                if (voices[idx]) utterance.voice = voices[idx];
+                utterance.rate = rate;
+                utterance.onend = done;
+                utterance.onerror = done;
+                speechSynthesis.speak(utterance);
+            }
+        }
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            const btn = document.getElementById('muteBtn');
+            if (isMuted) {
+                btn.textContent = '🔇 Muted';
+                btn.classList.add('muted');
+                speechSynthesis.cancel();
+                if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+                speechQueue = [];
+                isSpeaking = false;
+            } else {
+                btn.textContent = '🔊 Reading Aloud';
+                btn.classList.remove('muted');
+            }
+            saveSettings();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Enter key to connect
+        document.getElementById('usernameInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') connect();
+        });
+
+        // Auto-save settings on any change
+        document.getElementById('voiceEn').addEventListener('change', saveSettings);
+        document.getElementById('rateRange').addEventListener('input', saveSettings);
+        document.getElementById('giftMsgTemplate').addEventListener('input', saveSettings);
+        document.getElementById('joinMsgTemplate').addEventListener('input', saveSettings);
+        document.getElementById('toggleComments').addEventListener('change', saveSettings);
+        document.getElementById('toggleGifts').addEventListener('change', saveSettings);
+        document.getElementById('toggleJoins').addEventListener('change', saveSettings);
+    </script>
+</body>
+</html>
