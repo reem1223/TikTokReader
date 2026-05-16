@@ -187,31 +187,51 @@ wss.on('connection', (ws) => {
 
         // Battle/Match events
         let battleActive = false;
+        let battleStartTime = 0;
         let lastBattleEndTime = 0;
         let lastTaskTime = 0;
         let lastMultiplierSent = null;
-        const BATTLE_COOLDOWN = 15000; // 15s cooldown after match end before allowing new match start
-        const TASK_DEBOUNCE = 10000;   // 10s debounce between mission announcements
+        let lastMissionSent = null;
+        const BATTLE_COOLDOWN = 15000;      // 15s cooldown after match end before allowing new match start
+        const MATCH_START_GRACE = 60000;    // 60s grace: ignore battleStatus 2 right after match start (stale data)
+        const TASK_DEBOUNCE = 8000;         // 8s debounce between same-type announcements
 
         tiktokConnection.on('linkMicBattle', (data) => {
             const hasBattleUsers = data.battleUsers && data.battleUsers.length > 0;
             const now = Date.now();
 
+            console.log(`[Battle] linkMicBattle — users: ${hasBattleUsers}, active: ${battleActive}, status: ${JSON.stringify(data.battleStatus)}`);
+
             // Only trigger match start if not already in battle AND cooldown passed
             if (hasBattleUsers && !battleActive && (now - lastBattleEndTime > BATTLE_COOLDOWN)) {
                 battleActive = true;
+                battleStartTime = now;
+                lastMultiplierSent = null;
+                lastMissionSent = null;
                 console.log(`[Battle] ✅ MATCH STARTED`);
                 ws.send(JSON.stringify({ type: 'battle_start' }));
             }
         });
 
         tiktokConnection.on('linkMicArmies', (data) => {
+            const now = Date.now();
+
             // Detect match end from battleStatus 2
-            if (data.battleStatus === 2 && battleActive) {
-                battleActive = false;
-                lastBattleEndTime = Date.now();
-                lastMultiplierSent = null;
-                console.log(`[Battle] ❌ MATCH ENDED`);
+            if (data.battleStatus === 2) {
+                // Ignore stale end signals during grace period after match start
+                if (battleActive && (now - battleStartTime < MATCH_START_GRACE)) {
+                    console.log(`[Battle] ⏳ Ignoring battleStatus 2 (grace period — ${Math.round((now - battleStartTime) / 1000)}s after start)`);
+                    return;
+                }
+                if (battleActive) {
+                    battleActive = false;
+                    lastBattleEndTime = now;
+                    lastMultiplierSent = null;
+                    lastMissionSent = null;
+                    console.log(`[Battle] ❌ MATCH ENDED`);
+                    ws.send(JSON.stringify({ type: 'battle_end' }));
+                    return;
+                }
                 return;
             }
 
@@ -219,7 +239,17 @@ wss.on('connection', (ws) => {
             if (!data.battleArmies || data.battleArmies.length < 2) return;
             const armies = data.battleArmies;
             const scores = armies.map(a => a.points || 0);
-            if (scores.every(s => s === 0)) return; // skip empty scores
+            if (scores.every(s => s === 0)) return;
+
+            // If we get live score data and battle isn't active, it means we missed the start
+            if (!battleActive && scores.some(s => s > 0)) {
+                battleActive = true;
+                battleStartTime = now;
+                lastMultiplierSent = null;
+                lastMissionSent = null;
+                console.log(`[Battle] ✅ MATCH STARTED (detected from live scores)`);
+                ws.send(JSON.stringify({ type: 'battle_start' }));
+            }
 
             ws.send(JSON.stringify({
                 type: 'battle_update',
@@ -244,9 +274,7 @@ wss.on('connection', (ws) => {
                     const text = binary.toString('utf-8').replace(/[^\x20-\x7E\u0590-\u05FF\u0600-\u06FF]/g, ' ').replace(/\s+/g, ' ').trim();
                     console.log(`[BattleTask] Raw: ${text.substring(0, 300)}`);
 
-                    // Parse "multi N" values from the task message
-                    // Pattern: "pm_mt_live_match_instructions_1 multi 2" = double multiplier
-                    // Pattern: "pm_mt_live_match_instructions_2 multi 750" = target score
+                    // Pattern 1: "multi N" — multiplier (2=double, 3=triple) and target score (>=5)
                     const multiMatches = text.match(/multi\s+(\d+)/g);
                     if (multiMatches && multiMatches.length >= 1) {
                         let multiplier = null;
@@ -256,7 +284,7 @@ wss.on('connection', (ws) => {
                             const num = parseInt(m.replace('multi', '').trim());
                             if (num === 2 || num === 3) {
                                 multiplier = num === 2 ? 'double' : 'triple';
-                            } else if (num >= 10) {
+                            } else if (num >= 5) {
                                 targetScore = num.toString();
                             }
                         }
@@ -272,13 +300,19 @@ wss.on('connection', (ws) => {
                                 targetScore: targetScore,
                             }));
                         }
+                    }
 
-                        // Send mission announcement (with debounce, only if has target score)
-                        if (targetScore && (now - lastTaskTime > TASK_DEBOUNCE / 2)) {
-                            console.log(`[BattleTask] ✅ Mission target: ${targetScore}`);
+                    // Pattern 2: "sum N" — accumulation challenge (e.g., ice challenge, need N total points)
+                    const sumMatch = text.match(/sum\s+(\d+)/);
+                    if (sumMatch) {
+                        const sumTarget = sumMatch[1];
+                        if (sumTarget !== lastMissionSent && (now - lastTaskTime > TASK_DEBOUNCE)) {
+                            lastTaskTime = now;
+                            lastMissionSent = sumTarget;
+                            console.log(`[BattleTask] ✅ Challenge target: ${sumTarget}`);
                             ws.send(JSON.stringify({
                                 type: 'battle_mission',
-                                score: targetScore,
+                                score: sumTarget,
                             }));
                         }
                     }

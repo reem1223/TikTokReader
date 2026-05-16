@@ -729,6 +729,10 @@
             <input type="text" id="matchMsgMission" value="משימת לייב התחילה! צריך <score> נקודות לפתוח את הבונוס" dir="rtl" />
             <div class="hint">Use <code>&lt;score&gt;</code> for the required score</div>
         </div>
+        <div class="msg-template-row">
+            <label>🏁 סוף מאבק:</label>
+            <input type="text" id="matchMsgEnd" value="המאבק נגמר!" dir="rtl" />
+        </div>
     </div>
 
     <div class="status disconnected" id="statusBadge">Disconnected</div>
@@ -816,6 +820,7 @@
                 matchMsgGlove: document.getElementById('matchMsgGlove').value,
                 matchMsgTimer10: document.getElementById('matchMsgTimer10').value,
                 matchMsgMission: document.getElementById('matchMsgMission').value,
+                matchMsgEnd: document.getElementById('matchMsgEnd').value,
                 muted: isMuted,
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
@@ -856,6 +861,7 @@
             if (s.matchMsgGlove !== undefined) document.getElementById('matchMsgGlove').value = s.matchMsgGlove;
             if (s.matchMsgTimer10 !== undefined) document.getElementById('matchMsgTimer10').value = s.matchMsgTimer10;
             if (s.matchMsgMission !== undefined) document.getElementById('matchMsgMission').value = s.matchMsgMission;
+            if (s.matchMsgEnd !== undefined) document.getElementById('matchMsgEnd').value = s.matchMsgEnd;
             if (s.muted) {
                 isMuted = true;
                 const btn = document.getElementById('muteBtn');
@@ -1009,6 +1015,10 @@
                     addBattleEvent('mission', null, data.score || '???');
                 }
 
+                if (data.type === 'battle_end') {
+                    addBattleEvent('end');
+                }
+
                 if (data.type === 'reconnecting') {
                     setStatus('connecting', `Reconnecting in ${data.delaySec}s... (attempt ${data.attempt}/${data.maxAttempts})`);
                     playDisconnectSound();
@@ -1060,6 +1070,7 @@
                 glove: document.getElementById('matchMsgGlove').value || '<username> שלח כפפה!',
                 timer10: document.getElementById('matchMsgTimer10').value || 'נשארו 10 שניות!',
                 mission: document.getElementById('matchMsgMission').value || 'משימת לייב התחילה! צריך <score> נקודות',
+                end: document.getElementById('matchMsgEnd').value || 'המאבק נגמר!',
             };
 
             const labels = {
@@ -1069,6 +1080,7 @@
                 glove: '🥊 כפפה',
                 timer10: '⏱️ 10 שניות',
                 mission: '🎯 משימה',
+                end: '🏁 סיום',
             };
 
             let msg = templates[eventType] || '';
@@ -1506,6 +1518,7 @@
         document.getElementById('matchMsgGlove').addEventListener('input', saveSettings);
         document.getElementById('matchMsgTimer10').addEventListener('input', saveSettings);
         document.getElementById('matchMsgMission').addEventListener('input', saveSettings);
+        document.getElementById('matchMsgEnd').addEventListener('input', saveSettings);
     </script>
 </body>
 </html>
