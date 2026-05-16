@@ -255,10 +255,56 @@ wss.on('connection', (ws) => {
             console.log(`[Subscribe]`, JSON.stringify(data).substring(0, 200));
         });
 
-        // Catch-all: log any emitted event for debugging
+        // Catch-all: log and process battle-related raw events
         tiktokConnection.on('rawData', (messageTypeName, binary) => {
-            if (['WebcastChatMessage', 'WebcastGiftMessage', 'WebcastMemberMessage', 'WebcastSocialMessage'].includes(messageTypeName)) return;
+            // Skip high-frequency events
+            if (['WebcastChatMessage', 'WebcastGiftMessage', 'WebcastMemberMessage', 'WebcastSocialMessage',
+                 'WebcastRoomUserSeqMessage', 'WebcastControlMessage', 'WebcastLinkMicBattle', 'WebcastLinkMicArmies'].includes(messageTypeName)) return;
+
             console.log(`[RawData] Event type: ${messageTypeName}`);
+
+            // Extract readable strings from binary protobuf for battle notice/task messages
+            if (messageTypeName === 'WebcastLinkmicBattleNoticeMessage') {
+                try {
+                    const text = binary.toString('utf-8').replace(/[^\x20-\x7E\u0590-\u05FF\u0600-\u06FF\u4e00-\u9fff]/g, ' ').replace(/\s+/g, ' ').trim();
+                    console.log(`[BattleNotice] Decoded text: ${text.substring(0, 300)}`);
+
+                    // Detect multiplier patterns
+                    const lower = text.toLowerCase();
+                    let noticeType = null;
+                    if (lower.includes('3x') || lower.includes('triple') || lower.includes('x3') || lower.includes('3 x')) {
+                        noticeType = 'triple';
+                    } else if (lower.includes('2x') || lower.includes('double') || lower.includes('x2') || lower.includes('2 x')) {
+                        noticeType = 'double';
+                    }
+
+                    if (noticeType) {
+                        console.log(`[BattleNotice] Detected: ${noticeType} score!`);
+                        ws.send(JSON.stringify({ type: 'battle_multiplier', multiplier: noticeType }));
+                    } else {
+                        // Forward raw notice for client to handle
+                        ws.send(JSON.stringify({ type: 'battle_notice', text: text.substring(0, 200) }));
+                    }
+                } catch (e) {
+                    console.error(`[BattleNotice] Parse error:`, e.message);
+                }
+            }
+
+            if (messageTypeName === 'WebcastLinkmicBattleTaskMessage') {
+                try {
+                    const text = binary.toString('utf-8').replace(/[^\x20-\x7E\u0590-\u05FF\u0600-\u06FF\u4e00-\u9fff]/g, ' ').replace(/\s+/g, ' ').trim();
+                    console.log(`[BattleTask] Decoded text: ${text.substring(0, 300)}`);
+
+                    // Try to extract score/target numbers
+                    const numbers = text.match(/\d{2,}/g);
+                    const score = numbers ? numbers[0] : null;
+
+                    console.log(`[BattleTask] Detected mission! Target score: ${score || 'unknown'}`);
+                    ws.send(JSON.stringify({ type: 'battle_mission', score: score, text: text.substring(0, 200) }));
+                } catch (e) {
+                    console.error(`[BattleTask] Parse error:`, e.message);
+                }
+            }
         });
 
         // Auto-reconnect on disconnect

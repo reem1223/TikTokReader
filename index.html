@@ -948,19 +948,19 @@
                     addBattleEvent('timer10');
                 }
 
-                if (data.type === 'envelope') {
-                    const env = data.data || {};
-                    // Try to detect double/triple/mission from envelope data
-                    const envStr = JSON.stringify(env).toLowerCase();
-                    if (envStr.includes('triple') || envStr.includes('3x') || envStr.includes('x3')) {
-                        addBattleEvent('triple');
-                    } else if (envStr.includes('double') || envStr.includes('2x') || envStr.includes('x2')) {
-                        addBattleEvent('double');
-                    }
-                    if (envStr.includes('mission') || envStr.includes('target') || envStr.includes('goal')) {
-                        const scoreMatch = envStr.match(/(\d{2,})/);
-                        addBattleEvent('mission', null, scoreMatch ? scoreMatch[1] : '???');
-                    }
+                // Double/triple score detected from BattleNoticeMessage
+                if (data.type === 'battle_multiplier') {
+                    addBattleEvent(data.multiplier); // 'double' or 'triple'
+                }
+
+                // Mission/task detected from BattleTaskMessage
+                if (data.type === 'battle_mission') {
+                    addBattleEvent('mission', null, data.score || '???');
+                }
+
+                // Generic battle notice (not yet classified)
+                if (data.type === 'battle_notice') {
+                    console.log('[BattleNotice]', data.text);
                 }
 
                 if (data.type === 'reconnecting') {
