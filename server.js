@@ -1,11 +1,13 @@
 const { WebcastPushConnection } = require('tiktok-live-connector');
 const { WebSocketServer } = require('ws');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 3000;
+const PROXY_URL = process.env.PROXY_URL || null; // e.g. http://user:pass@proxy.webshare.io:80
 
 // Google Translate TTS — fetches MP3 audio for a given text and language
 function fetchGoogleTTS(text, lang) {
@@ -102,15 +104,32 @@ wss.on('connection', (ws) => {
 
         if (data.type === 'connect') {
             const username = data.username;
-            console.log(`[TikTok] Connecting to @${username}...`);
+            console.log(`[TikTok] Connecting to @${username}...${PROXY_URL ? ' (via proxy)' : ''}`);
 
-            tiktokConnection = new WebcastPushConnection(username, {
+            const options = {
                 processInitialData: true,
                 enableExtendedGiftInfo: true,
                 enableWebsocketUpgrade: true,
                 requestPollingIntervalMs: 2000,
                 sessionId: null,
-            });
+            };
+
+            // Route through residential proxy if configured
+            if (PROXY_URL) {
+                const agent = new HttpsProxyAgent(PROXY_URL);
+                options.requestOptions = {
+                    httpsAgent: agent,
+                    httpAgent: agent,
+                    proxy: false,
+                    timeout: 15000,
+                };
+                options.websocketOptions = {
+                    agent: agent,
+                };
+                console.log(`[Proxy] Using proxy: ${PROXY_URL.replace(/:[^:@]+@/, ':***@')}`);
+            }
+
+            tiktokConnection = new WebcastPushConnection(username, options);
 
             tiktokConnection.connect()
                 .then((state) => {
@@ -121,7 +140,7 @@ wss.on('connection', (ws) => {
                     }));
                 })
                 .catch((err) => {
-                    console.error(`[TikTok] Connection failed:`, err.message);
+                    console.error(`[TikTok] Connection failed:`, err.message, err.stack);
                     ws.send(JSON.stringify({
                         type: 'error',
                         message: err.message || 'Failed to connect. Is the user live?'
@@ -201,4 +220,19 @@ wss.on('connection', (ws) => {
 httpServer.listen(PORT, () => {
     console.log(`\n✅ TikTok Live Reader Server running!`);
     console.log(`📺 Open http://localhost:${PORT} in your browser\n`);
+
+    // Test proxy on startup
+    if (PROXY_URL) {
+        console.log(`[Proxy] Testing proxy connection...`);
+        const agent = new HttpsProxyAgent(PROXY_URL);
+        https.get('https://api.ipify.org?format=json', { agent }, (res) => {
+            let body = '';
+            res.on('data', c => body += c);
+            res.on('end', () => {
+                console.log(`[Proxy] ✅ Proxy working! External IP: ${body}`);
+            });
+        }).on('error', (err) => {
+            console.error(`[Proxy] ❌ Proxy test FAILED:`, err.message);
+        });
+    }
 });
