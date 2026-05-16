@@ -147,25 +147,15 @@ wss.on('connection', (ws) => {
             });
 
         // Chat messages
-        let initialChatCount = 0;
         tiktokConnection.on('chat', (data) => {
-            initialChatCount++;
             const payload = {
                 type: 'chat',
                 user: data.uniqueId || data.nickname || 'Anonymous',
                 displayName: data.nickname || data.uniqueId || 'Anonymous',
                 comment: data.comment,
-                isInitial: initialChatCount <= 20,
             };
             console.log(`[Chat] @${payload.user}: ${payload.comment}`);
             ws.send(JSON.stringify(payload));
-        });
-
-        // After initial data is processed, mark subsequent messages as live
-        tiktokConnection.on('websocketConnected', () => {
-            initialChatCount = 999;
-            ws.send(JSON.stringify({ type: 'live' }));
-            console.log('[TikTok] WebSocket upgraded — now live');
         });
 
         // Gift events

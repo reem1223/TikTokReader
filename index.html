@@ -976,7 +976,7 @@
                 }
 
                 if (data.type === 'chat') {
-                    addComment(data.user, data.comment, data.displayName, data.isInitial);
+                    addComment(data.user, data.comment, data.displayName);
                 }
 
                 if (data.type === 'gift') {
@@ -1347,9 +1347,8 @@
             }
         }
 
-        function addComment(user, text, displayName, isInitial) {
+        function addComment(user, text, displayName) {
             commentCount++;
-            initialMessageCount++;
             document.getElementById('commentCount').textContent = commentCount;
 
             const lang = detectLang(text);
@@ -1371,8 +1370,8 @@
             // Click to read aloud
             item.addEventListener('click', () => readItemAloud(nameToShow, text, lang, item));
 
-            // Queue for TTS: skip initial backlog, check language toggles
-            const shouldRead = !isMuted && !isInitial
+            // Queue for TTS: check language toggles
+            const shouldRead = !isMuted
                 && document.getElementById('toggleComments').checked
                 && (lang === 'he' ? document.getElementById('toggleHebrew').checked : document.getElementById('toggleEnglish').checked);
             if (shouldRead) {
