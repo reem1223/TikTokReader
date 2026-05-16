@@ -478,7 +478,7 @@
             margin-bottom: 8px;
         }
 
-        .toggle-row label {
+        .toggle-row > span {
             font-size: 0.85rem;
             color: #ccc;
             font-weight: 600;
@@ -566,33 +566,38 @@
             <button class="test-btn" onclick="testHebrewVoice()">Test</button>
         </div>
         <div class="speed-row">
-            <label>Speed:</label>
-            <input type="range" id="rateRange" min="0.5" max="2" step="0.1" value="1" oninput="document.getElementById('speedVal').textContent = this.value + 'x'" />
-            <span class="speed-val" id="speedVal">1x</span>
+            <label>Speed (EN):</label>
+            <input type="range" id="rateRangeEn" min="0.5" max="2" step="0.1" value="1" oninput="document.getElementById('speedValEn').textContent = this.value + 'x'" />
+            <span class="speed-val" id="speedValEn">1x</span>
+        </div>
+        <div class="speed-row">
+            <label>Speed (HE):</label>
+            <input type="range" id="rateRangeHe" min="0.5" max="2" step="0.1" value="1" oninput="document.getElementById('speedValHe').textContent = this.value + 'x'" />
+            <span class="speed-val" id="speedValHe">1x</span>
         </div>
 
         <div class="toggles-section">
             <h4>Read Aloud</h4>
             <div class="toggle-row">
-                <label>💬 Comments</label>
-                <span class="toggle-switch">
+                <span>💬 Comments</span>
+                <label class="toggle-switch">
                     <input type="checkbox" id="toggleComments" checked>
                     <span class="toggle-slider"></span>
-                </span>
+                </label>
             </div>
             <div class="toggle-row">
-                <label>🎁 Gifts</label>
-                <span class="toggle-switch">
+                <span>🎁 Gifts</span>
+                <label class="toggle-switch">
                     <input type="checkbox" id="toggleGifts" checked>
                     <span class="toggle-slider"></span>
-                </span>
+                </label>
             </div>
             <div class="toggle-row">
-                <label>👋 Joining Users</label>
-                <span class="toggle-switch">
+                <span>👋 Joining Users</span>
+                <label class="toggle-switch">
                     <input type="checkbox" id="toggleJoins" checked>
                     <span class="toggle-slider"></span>
-                </span>
+                </label>
             </div>
         </div>
 
@@ -642,8 +647,13 @@
         // Hebrew character detection regex
         const hebrewRegex = /[\u0590-\u05FF]/;
 
+        // Emoji regex: matches common emoji ranges
+        const emojiRegex = /^[\s\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F000}-\u{1FFFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]+$/u;
+
         function detectLang(text) {
-            return hebrewRegex.test(text) ? 'he' : 'en';
+            if (hebrewRegex.test(text)) return 'he';
+            if (emojiRegex.test(text)) return 'he';
+            return 'en';
         }
 
         // --- Settings persistence via localStorage ---
@@ -652,7 +662,8 @@
         function saveSettings() {
             const settings = {
                 voiceEn: document.getElementById('voiceEn').value,
-                rate: document.getElementById('rateRange').value,
+                rateEn: document.getElementById('rateRangeEn').value,
+                rateHe: document.getElementById('rateRangeHe').value,
                 giftMsg: document.getElementById('giftMsgTemplate').value,
                 joinMsg: document.getElementById('joinMsgTemplate').value,
                 toggleComments: document.getElementById('toggleComments').checked,
@@ -676,9 +687,13 @@
             if (s.voiceEn && enSelect.querySelector(`option[value="${s.voiceEn}"]`)) {
                 enSelect.value = s.voiceEn;
             }
-            if (s.rate) {
-                document.getElementById('rateRange').value = s.rate;
-                document.getElementById('speedVal').textContent = s.rate + 'x';
+            if (s.rateEn) {
+                document.getElementById('rateRangeEn').value = s.rateEn;
+                document.getElementById('speedValEn').textContent = s.rateEn + 'x';
+            }
+            if (s.rateHe) {
+                document.getElementById('rateRangeHe').value = s.rateHe;
+                document.getElementById('speedValHe').textContent = s.rateHe + 'x';
             }
             if (s.giftMsg !== undefined) document.getElementById('giftMsgTemplate').value = s.giftMsg;
             if (s.joinMsg !== undefined) document.getElementById('joinMsgTemplate').value = s.joinMsg;
@@ -934,7 +949,9 @@
             const { user, text, lang, isGift, element } = speechQueue.shift();
             element.classList.add('reading');
 
-            const rate = parseFloat(document.getElementById('rateRange').value);
+            const rate = lang === 'he'
+                ? parseFloat(document.getElementById('rateRangeHe').value)
+                : parseFloat(document.getElementById('rateRangeEn').value);
             const done = () => {
                 element.classList.remove('reading');
                 isSpeaking = false;
@@ -995,7 +1012,8 @@
 
         // Auto-save settings on any change
         document.getElementById('voiceEn').addEventListener('change', saveSettings);
-        document.getElementById('rateRange').addEventListener('input', saveSettings);
+        document.getElementById('rateRangeEn').addEventListener('input', saveSettings);
+        document.getElementById('rateRangeHe').addEventListener('input', saveSettings);
         document.getElementById('giftMsgTemplate').addEventListener('input', saveSettings);
         document.getElementById('joinMsgTemplate').addEventListener('input', saveSettings);
         document.getElementById('toggleComments').addEventListener('change', saveSettings);
