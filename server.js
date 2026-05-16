@@ -164,6 +164,8 @@ wss.on('connection', (ws) => {
         // After initial data is processed, mark subsequent messages as live
         tiktokConnection.on('websocketConnected', () => {
             initialChatCount = 999;
+            ws.send(JSON.stringify({ type: 'live' }));
+            console.log('[TikTok] WebSocket upgraded — now live');
         });
 
         // Gift events
