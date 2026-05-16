@@ -540,6 +540,61 @@
             margin-bottom: 10px;
             font-weight: 600;
         }
+
+        .match-panel {
+            width: 100%;
+            max-width: 600px;
+            background: #1a1a1a;
+            border: 1px solid #262626;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+        }
+
+        .match-panel h3 {
+            font-size: 0.9rem;
+            color: #fe2c55;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .match-panel .msg-template-row label {
+            color: #fe9a9a;
+        }
+
+        .match-panel .msg-template-row .hint code {
+            color: #fe2c55;
+        }
+
+        .comment-item.battle {
+            background: linear-gradient(135deg, #2a0a1a, #1a1a1a);
+            border: 1px solid #fe2c55;
+        }
+
+        .comment-item.battle.reading {
+            border-right: 3px solid #fe2c55;
+            border-left: none;
+        }
+
+        .battle-badge {
+            display: inline-block;
+            font-size: 0.65rem;
+            padding: 1px 6px;
+            border-radius: 4px;
+            margin-left: 6px;
+            font-weight: 600;
+            background: #2a0a1a;
+            color: #fe2c55;
+        }
+
+        .battle-text {
+            font-size: 0.95rem;
+            color: #fe9a9a;
+            direction: rtl;
+            text-align: right;
+        }
     </style>
 </head>
 <body>
@@ -619,6 +674,43 @@
         </div>
     </div>
 
+    <div class="match-panel">
+        <h3>⚔️ Match Manager</h3>
+        <div class="toggle-row">
+            <span>⚔️ Match Manager</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="toggleMatch" checked>
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+        <div class="msg-template-row">
+            <label>🥊 התחלת מאבק:</label>
+            <input type="text" id="matchMsgStart" value="המאבק התחיל! קדימה שולחים מתנות" dir="rtl" />
+        </div>
+        <div class="msg-template-row">
+            <label>✌️ ניקוד כפול:</label>
+            <input type="text" id="matchMsgDouble" value="ניקוד כפול התחיל! כל מתנה שווה פי 2" dir="rtl" />
+        </div>
+        <div class="msg-template-row">
+            <label>🔥 ניקוד משולש:</label>
+            <input type="text" id="matchMsgTriple" value="ניקוד משולש! כל מתנה שווה פי 3" dir="rtl" />
+        </div>
+        <div class="msg-template-row">
+            <label>🥊 נשלח כפפה:</label>
+            <input type="text" id="matchMsgGlove" value="<username> שלח כפפה! המאבק מתחיל בקרוב" dir="rtl" />
+            <div class="hint">Use <code>&lt;username&gt;</code> for the sender's name</div>
+        </div>
+        <div class="msg-template-row">
+            <label>⏱️ 10 שניות אחרונות:</label>
+            <input type="text" id="matchMsgTimer10" value="נשארו 10 שניות! שולחים הכל עכשיו" dir="rtl" />
+        </div>
+        <div class="msg-template-row">
+            <label>🎯 משימת לייב:</label>
+            <input type="text" id="matchMsgMission" value="משימת לייב התחילה! צריך <score> נקודות לפתוח את הבונוס" dir="rtl" />
+            <div class="hint">Use <code>&lt;score&gt;</code> for the required score</div>
+        </div>
+    </div>
+
     <div class="status disconnected" id="statusBadge">Disconnected</div>
 
     <div class="comments-container">
@@ -669,6 +761,13 @@
                 toggleComments: document.getElementById('toggleComments').checked,
                 toggleGifts: document.getElementById('toggleGifts').checked,
                 toggleJoins: document.getElementById('toggleJoins').checked,
+                toggleMatch: document.getElementById('toggleMatch').checked,
+                matchMsgStart: document.getElementById('matchMsgStart').value,
+                matchMsgDouble: document.getElementById('matchMsgDouble').value,
+                matchMsgTriple: document.getElementById('matchMsgTriple').value,
+                matchMsgGlove: document.getElementById('matchMsgGlove').value,
+                matchMsgTimer10: document.getElementById('matchMsgTimer10').value,
+                matchMsgMission: document.getElementById('matchMsgMission').value,
                 muted: isMuted,
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
@@ -700,6 +799,13 @@
             if (s.toggleComments !== undefined) document.getElementById('toggleComments').checked = s.toggleComments;
             if (s.toggleGifts !== undefined) document.getElementById('toggleGifts').checked = s.toggleGifts;
             if (s.toggleJoins !== undefined) document.getElementById('toggleJoins').checked = s.toggleJoins;
+            if (s.toggleMatch !== undefined) document.getElementById('toggleMatch').checked = s.toggleMatch;
+            if (s.matchMsgStart !== undefined) document.getElementById('matchMsgStart').value = s.matchMsgStart;
+            if (s.matchMsgDouble !== undefined) document.getElementById('matchMsgDouble').value = s.matchMsgDouble;
+            if (s.matchMsgTriple !== undefined) document.getElementById('matchMsgTriple').value = s.matchMsgTriple;
+            if (s.matchMsgGlove !== undefined) document.getElementById('matchMsgGlove').value = s.matchMsgGlove;
+            if (s.matchMsgTimer10 !== undefined) document.getElementById('matchMsgTimer10').value = s.matchMsgTimer10;
+            if (s.matchMsgMission !== undefined) document.getElementById('matchMsgMission').value = s.matchMsgMission;
             if (s.muted) {
                 isMuted = true;
                 const btn = document.getElementById('muteBtn');
@@ -822,10 +928,39 @@
 
                 if (data.type === 'gift') {
                     addGift(data.user, data.giftName, data.giftCount, data.giftPictureUrl);
+                    // Detect glove gift for Match Manager
+                    const gloveName = (data.giftName || '').toLowerCase();
+                    if (gloveName.includes('glove') || gloveName.includes('boxing') || gloveName.includes('כפפ')) {
+                        addBattleEvent('glove', data.user);
+                    }
                 }
 
                 if (data.type === 'member') {
                     addJoin(data.user);
+                }
+
+                // Match Manager events
+                if (data.type === 'battle_start') {
+                    addBattleEvent('start');
+                }
+
+                if (data.type === 'battle_timer_10') {
+                    addBattleEvent('timer10');
+                }
+
+                if (data.type === 'envelope') {
+                    const env = data.data || {};
+                    // Try to detect double/triple/mission from envelope data
+                    const envStr = JSON.stringify(env).toLowerCase();
+                    if (envStr.includes('triple') || envStr.includes('3x') || envStr.includes('x3')) {
+                        addBattleEvent('triple');
+                    } else if (envStr.includes('double') || envStr.includes('2x') || envStr.includes('x2')) {
+                        addBattleEvent('double');
+                    }
+                    if (envStr.includes('mission') || envStr.includes('target') || envStr.includes('goal')) {
+                        const scoreMatch = envStr.match(/(\d{2,})/);
+                        addBattleEvent('mission', null, scoreMatch ? scoreMatch[1] : '???');
+                    }
                 }
 
                 if (data.type === 'reconnecting') {
@@ -864,6 +999,53 @@
             document.getElementById('connectBtn').disabled = false;
             document.getElementById('connectBtn').style.display = 'inline-block';
             document.getElementById('disconnectBtn').style.display = 'none';
+        }
+
+        function addBattleEvent(eventType, user, score) {
+            if (!document.getElementById('toggleMatch').checked) return;
+
+            const templates = {
+                start: document.getElementById('matchMsgStart').value || 'המאבק התחיל!',
+                double: document.getElementById('matchMsgDouble').value || 'ניקוד כפול התחיל!',
+                triple: document.getElementById('matchMsgTriple').value || 'ניקוד משולש!',
+                glove: document.getElementById('matchMsgGlove').value || '<username> שלח כפפה!',
+                timer10: document.getElementById('matchMsgTimer10').value || 'נשארו 10 שניות!',
+                mission: document.getElementById('matchMsgMission').value || 'משימת לייב התחילה! צריך <score> נקודות',
+            };
+
+            const labels = {
+                start: '🥊 מאבק',
+                double: '✌️ כפול',
+                triple: '🔥 משולש',
+                glove: '🥊 כפפה',
+                timer10: '⏱️ 10 שניות',
+                mission: '🎯 משימה',
+            };
+
+            let msg = templates[eventType] || '';
+            if (user) msg = msg.replace(/<username>/gi, user);
+            if (score) msg = msg.replace(/<score>/gi, score);
+
+            commentCount++;
+            document.getElementById('commentCount').textContent = commentCount;
+
+            const list = document.getElementById('commentsList');
+            const item = document.createElement('div');
+            item.className = 'comment-item battle rtl';
+
+            const badgeLabel = labels[eventType] || '⚔️ מאבק';
+            item.innerHTML = `
+                <div class="comment-user"><span class="battle-badge">${badgeLabel}</span></div>
+                <div class="battle-text">${escapeHtml(msg)}</div>
+                <div class="comment-time">${new Date().toLocaleTimeString()}</div>
+            `;
+            list.appendChild(item);
+            list.scrollTop = list.scrollHeight;
+
+            if (!isMuted) {
+                speechQueue.push({ user: '', text: msg, lang: 'he', isGift: true, element: item });
+                processQueue();
+            }
         }
 
         function addGift(user, giftName, giftCount, giftPicUrl) {
@@ -1023,6 +1205,13 @@
         document.getElementById('toggleComments').addEventListener('change', saveSettings);
         document.getElementById('toggleGifts').addEventListener('change', saveSettings);
         document.getElementById('toggleJoins').addEventListener('change', saveSettings);
+        document.getElementById('toggleMatch').addEventListener('change', saveSettings);
+        document.getElementById('matchMsgStart').addEventListener('input', saveSettings);
+        document.getElementById('matchMsgDouble').addEventListener('input', saveSettings);
+        document.getElementById('matchMsgTriple').addEventListener('input', saveSettings);
+        document.getElementById('matchMsgGlove').addEventListener('input', saveSettings);
+        document.getElementById('matchMsgTimer10').addEventListener('input', saveSettings);
+        document.getElementById('matchMsgMission').addEventListener('input', saveSettings);
     </script>
 </body>
 </html>

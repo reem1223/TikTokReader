@@ -181,6 +181,73 @@ wss.on('connection', (ws) => {
             ws.send(JSON.stringify(payload));
         });
 
+        // Battle/Match events
+        let battleActive = false;
+        let battleTimerInterval = null;
+        let lastBattleDuration = 0;
+        let tenSecFired = false;
+
+        tiktokConnection.on('linkMicBattle', (data) => {
+            console.log(`[Battle] Status: ${data.battleStatus}, type: ${data.battleType || 'unknown'}`);
+            // battleStatus: 1 = started, 2 = finished
+            if (data.battleStatus === 1) {
+                battleActive = true;
+                tenSecFired = false;
+                lastBattleDuration = data.duration || 120;
+                ws.send(JSON.stringify({
+                    type: 'battle_start',
+                    duration: lastBattleDuration,
+                }));
+
+                // Start timer tracking for 10-second warning
+                let remaining = lastBattleDuration;
+                if (battleTimerInterval) clearInterval(battleTimerInterval);
+                battleTimerInterval = setInterval(() => {
+                    remaining--;
+                    if (remaining === 10 && !tenSecFired) {
+                        tenSecFired = true;
+                        ws.send(JSON.stringify({ type: 'battle_timer_10' }));
+                    }
+                    if (remaining <= 0) {
+                        clearInterval(battleTimerInterval);
+                        battleTimerInterval = null;
+                    }
+                }, 1000);
+
+            } else if (data.battleStatus === 2) {
+                battleActive = false;
+                if (battleTimerInterval) { clearInterval(battleTimerInterval); battleTimerInterval = null; }
+            }
+        });
+
+        tiktokConnection.on('linkMicArmies', (data) => {
+            if (!data.battleArmies || data.battleArmies.length < 2) return;
+
+            const armies = data.battleArmies;
+            const scores = armies.map(a => a.points || 0);
+            console.log(`[Battle] Scores: ${scores.join(' vs ')}`);
+
+            ws.send(JSON.stringify({
+                type: 'battle_update',
+                scores: scores,
+                battleArmies: armies,
+            }));
+        });
+
+        // Envelope events (double/triple score, missions)
+        tiktokConnection.on('envelope', (data) => {
+            console.log(`[Envelope]`, JSON.stringify(data).substring(0, 200));
+            ws.send(JSON.stringify({
+                type: 'envelope',
+                data: data,
+            }));
+        });
+
+        // Listen for rawData to catch mission/multiplier events
+        tiktokConnection.on('roomUpdate', (data) => {
+            console.log(`[RoomUpdate]`, JSON.stringify(data).substring(0, 200));
+        });
+
         // Auto-reconnect on disconnect
         tiktokConnection.on('disconnected', () => {
             console.log('[TikTok] Disconnected from livestream');
