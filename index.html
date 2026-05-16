@@ -828,6 +828,10 @@
                     addJoin(data.user);
                 }
 
+                if (data.type === 'reconnecting') {
+                    setStatus('connecting', `Reconnecting in ${data.delaySec}s... (attempt ${data.attempt}/${data.maxAttempts})`);
+                }
+
                 if (data.type === 'error') {
                     setStatus('disconnected', `Error: ${data.message}`);
                     document.getElementById('connectBtn').disabled = false;

@@ -91,6 +91,137 @@ const wss = new WebSocketServer({ server: httpServer });
 
 wss.on('connection', (ws) => {
     let tiktokConnection = null;
+    let currentUsername = null;
+    let manualDisconnect = false;
+    let reconnectAttempts = 0;
+    let reconnectTimer = null;
+    const MAX_RECONNECT_ATTEMPTS = 10;
+    const RECONNECT_DELAYS = [3000, 5000, 10000, 15000, 30000]; // escalating delays
+
+    function connectToTikTok(username) {
+        console.log(`[TikTok] Connecting to @${username}...${PROXY_URL ? ' (via proxy)' : ''}${reconnectAttempts > 0 ? ` (attempt ${reconnectAttempts + 1})` : ''}`);
+
+        const options = {
+            processInitialData: true,
+            enableExtendedGiftInfo: true,
+            enableWebsocketUpgrade: true,
+            requestPollingIntervalMs: 2000,
+            sessionId: null,
+        };
+
+        if (PROXY_URL) {
+            const agent = new HttpsProxyAgent(PROXY_URL);
+            options.requestOptions = {
+                httpsAgent: agent,
+                httpAgent: agent,
+                proxy: false,
+                timeout: 15000,
+            };
+            options.websocketOptions = {
+                agent: agent,
+            };
+        }
+
+        tiktokConnection = new WebcastPushConnection(username, options);
+
+        tiktokConnection.connect()
+            .then((state) => {
+                reconnectAttempts = 0;
+                console.log(`[TikTok] Connected to @${username} — Room: "${state.roomInfo?.title || 'Live'}"`);
+                ws.send(JSON.stringify({
+                    type: 'connected',
+                    roomInfo: state.roomInfo?.title || 'Live'
+                }));
+            })
+            .catch((err) => {
+                console.error(`[TikTok] Connection failed:`, err.message);
+                if (!manualDisconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                    scheduleReconnect(username);
+                } else {
+                    ws.send(JSON.stringify({
+                        type: 'error',
+                        message: err.message || 'Failed to connect. Is the user live?'
+                    }));
+                }
+            });
+
+        // Chat messages
+        tiktokConnection.on('chat', (data) => {
+            const payload = {
+                type: 'chat',
+                user: data.uniqueId || data.nickname || 'Anonymous',
+                comment: data.comment
+            };
+            console.log(`[Chat] @${payload.user}: ${payload.comment}`);
+            ws.send(JSON.stringify(payload));
+        });
+
+        // Gift events
+        tiktokConnection.on('gift', (data) => {
+            if (data.giftType === 1 && !data.repeatEnd) return;
+            const payload = {
+                type: 'gift',
+                user: data.uniqueId || data.nickname || 'Anonymous',
+                giftName: data.giftName || 'gift',
+                giftCount: data.repeatCount || 1,
+                diamondCount: data.diamondCount || 0,
+                giftPictureUrl: data.giftPictureUrl || '',
+            };
+            console.log(`[Gift] @${payload.user} sent ${payload.giftCount}x ${payload.giftName}`);
+            ws.send(JSON.stringify(payload));
+        });
+
+        // Member join events
+        tiktokConnection.on('member', (data) => {
+            const payload = {
+                type: 'member',
+                user: data.uniqueId || data.nickname || 'Anonymous',
+            };
+            console.log(`[Join] @${payload.user} joined`);
+            ws.send(JSON.stringify(payload));
+        });
+
+        // Auto-reconnect on disconnect
+        tiktokConnection.on('disconnected', () => {
+            console.log('[TikTok] Disconnected from livestream');
+            if (!manualDisconnect) {
+                scheduleReconnect(username);
+            } else {
+                ws.send(JSON.stringify({
+                    type: 'error',
+                    message: 'Disconnected from livestream'
+                }));
+            }
+        });
+
+        tiktokConnection.on('error', (err) => {
+            console.error('[TikTok] Error:', err.message);
+        });
+    }
+
+    function scheduleReconnect(username) {
+        if (manualDisconnect || reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            ws.send(JSON.stringify({
+                type: 'error',
+                message: 'Disconnected. Max reconnect attempts reached.'
+            }));
+            return;
+        }
+        const delay = RECONNECT_DELAYS[Math.min(reconnectAttempts, RECONNECT_DELAYS.length - 1)];
+        reconnectAttempts++;
+        console.log(`[TikTok] Reconnecting in ${delay / 1000}s... (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+        ws.send(JSON.stringify({
+            type: 'reconnecting',
+            attempt: reconnectAttempts,
+            maxAttempts: MAX_RECONNECT_ATTEMPTS,
+            delaySec: Math.round(delay / 1000),
+        }));
+        reconnectTimer = setTimeout(() => {
+            if (!manualDisconnect && ws.readyState === 1) {
+                connectToTikTok(username);
+            }
+        }, delay);
+    }
 
     console.log('[WS] Client connected');
 
@@ -103,103 +234,15 @@ wss.on('connection', (ws) => {
         }
 
         if (data.type === 'connect') {
-            const username = data.username;
-            console.log(`[TikTok] Connecting to @${username}...${PROXY_URL ? ' (via proxy)' : ''}`);
-
-            const options = {
-                processInitialData: true,
-                enableExtendedGiftInfo: true,
-                enableWebsocketUpgrade: true,
-                requestPollingIntervalMs: 2000,
-                sessionId: null,
-            };
-
-            // Route through residential proxy if configured
-            if (PROXY_URL) {
-                const agent = new HttpsProxyAgent(PROXY_URL);
-                options.requestOptions = {
-                    httpsAgent: agent,
-                    httpAgent: agent,
-                    proxy: false,
-                    timeout: 15000,
-                };
-                options.websocketOptions = {
-                    agent: agent,
-                };
-                console.log(`[Proxy] Using proxy: ${PROXY_URL.replace(/:[^:@]+@/, ':***@')}`);
-            }
-
-            tiktokConnection = new WebcastPushConnection(username, options);
-
-            tiktokConnection.connect()
-                .then((state) => {
-                    console.log(`[TikTok] Connected to @${username} — Room: "${state.roomInfo?.title || 'Live'}"`);
-                    ws.send(JSON.stringify({
-                        type: 'connected',
-                        roomInfo: state.roomInfo?.title || 'Live'
-                    }));
-                })
-                .catch((err) => {
-                    console.error(`[TikTok] Connection failed:`, err.message, err.stack);
-                    ws.send(JSON.stringify({
-                        type: 'error',
-                        message: err.message || 'Failed to connect. Is the user live?'
-                    }));
-                });
-
-            // Chat messages
-            tiktokConnection.on('chat', (data) => {
-                const payload = {
-                    type: 'chat',
-                    user: data.uniqueId || data.nickname || 'Anonymous',
-                    comment: data.comment
-                };
-                console.log(`[Chat] @${payload.user}: ${payload.comment}`);
-                ws.send(JSON.stringify(payload));
-            });
-
-            // Gift events
-            tiktokConnection.on('gift', (data) => {
-                // Only process when gift streak is finished or non-streak gifts
-                if (data.giftType === 1 && !data.repeatEnd) return;
-
-                const payload = {
-                    type: 'gift',
-                    user: data.uniqueId || data.nickname || 'Anonymous',
-                    giftName: data.giftName || 'gift',
-                    giftCount: data.repeatCount || 1,
-                    diamondCount: data.diamondCount || 0,
-                    giftPictureUrl: data.giftPictureUrl || '',
-                };
-                console.log(`[Gift] @${payload.user} sent ${payload.giftCount}x ${payload.giftName}`);
-                ws.send(JSON.stringify(payload));
-            });
-
-            // Member join events
-            tiktokConnection.on('member', (data) => {
-                const payload = {
-                    type: 'member',
-                    user: data.uniqueId || data.nickname || 'Anonymous',
-                };
-                console.log(`[Join] @${payload.user} joined`);
-                ws.send(JSON.stringify(payload));
-            });
-
-            // Handle disconnection from TikTok
-            tiktokConnection.on('disconnected', () => {
-                console.log('[TikTok] Disconnected from livestream');
-                ws.send(JSON.stringify({
-                    type: 'error',
-                    message: 'Disconnected from livestream'
-                }));
-            });
-
-            tiktokConnection.on('error', (err) => {
-                console.error('[TikTok] Error:', err.message);
-            });
+            currentUsername = data.username;
+            manualDisconnect = false;
+            reconnectAttempts = 0;
+            connectToTikTok(currentUsername);
         }
 
         if (data.type === 'disconnect') {
+            manualDisconnect = true;
+            if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
             if (tiktokConnection) {
                 tiktokConnection.disconnect();
                 tiktokConnection = null;
@@ -210,6 +253,8 @@ wss.on('connection', (ws) => {
 
     ws.on('close', () => {
         console.log('[WS] Client disconnected');
+        manualDisconnect = true;
+        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
         if (tiktokConnection) {
             tiktokConnection.disconnect();
             tiktokConnection = null;
