@@ -755,7 +755,6 @@
         let speechQueue = [];
         let isSpeaking = false;
         let currentAudio = null;
-        let suppressTTS = true;
 
         // Connection sounds using Web Audio API
         function playTone(freq, duration, type) {
@@ -967,16 +966,13 @@
                     setStatus('connected', `Connected to @${username} — ${data.roomInfo || 'Live'}`);
                     document.getElementById('connectBtn').style.display = 'none';
                     document.getElementById('disconnectBtn').style.display = 'inline-block';
-                    suppressTTS = true;
                     playConnectSound();
-                    // Clear empty state
+                    // Clear all past events so nothing old gets read
                     const list = document.getElementById('commentsList');
-                    const empty = list.querySelector('.empty-state');
-                    if (empty) empty.remove();
-                }
-
-                if (data.type === 'live') {
-                    suppressTTS = false;
+                    list.innerHTML = '';
+                    commentCount = 0;
+                    document.getElementById('commentCount').textContent = '0';
+                    speechQueue = [];
                 }
 
                 if (data.type === 'chat') {
@@ -1316,7 +1312,7 @@
             // Click to read aloud
             item.addEventListener('click', () => readItemAloud('', ttsMsg, 'he', item, true));
 
-            if (!isMuted && !suppressTTS && document.getElementById('toggleGifts').checked && document.getElementById('toggleHebrew').checked) {
+            if (!isMuted && document.getElementById('toggleGifts').checked && document.getElementById('toggleHebrew').checked) {
                 speechQueue.push({ user: nameToShow, text: ttsMsg, lang: 'he', isGift: true, element: item });
                 processQueue();
             }
@@ -1345,7 +1341,7 @@
             // Click to read aloud
             item.addEventListener('click', () => readItemAloud('', hebrewMsg, 'he', item, true));
 
-            if (!isMuted && !suppressTTS && document.getElementById('toggleJoins').checked && document.getElementById('toggleHebrew').checked) {
+            if (!isMuted && document.getElementById('toggleJoins').checked && document.getElementById('toggleHebrew').checked) {
                 speechQueue.push({ user: nameToShow, text: hebrewMsg, lang: 'he', isGift: true, element: item });
                 processQueue();
             }
@@ -1375,8 +1371,8 @@
             // Click to read aloud
             item.addEventListener('click', () => readItemAloud(nameToShow, text, lang, item));
 
-            // Queue for TTS: skip if suppressed (initial data), check language toggles
-            const shouldRead = !isMuted && !suppressTTS
+            // Queue for TTS: skip initial backlog, check language toggles
+            const shouldRead = !isMuted && !isInitial
                 && document.getElementById('toggleComments').checked
                 && (lang === 'he' ? document.getElementById('toggleHebrew').checked : document.getElementById('toggleEnglish').checked);
             if (shouldRead) {
