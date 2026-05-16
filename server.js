@@ -107,6 +107,7 @@ wss.on('connection', (ws) => {
             enableWebsocketUpgrade: true,
             requestPollingIntervalMs: 2000,
             sessionId: null,
+            emitRawEvents: true,
         };
 
         if (PROXY_URL) {
@@ -187,8 +188,13 @@ wss.on('connection', (ws) => {
         let lastBattleDuration = 0;
         let tenSecFired = false;
 
+        // Log WebSocket connection upgrade
+        tiktokConnection.on('websocketConnected', (wsState) => {
+            console.log(`[TikTok] WebSocket upgraded: ${wsState.isWebsocketUpgrade}`);
+        });
+
         tiktokConnection.on('linkMicBattle', (data) => {
-            console.log(`[Battle] Status: ${data.battleStatus}, type: ${data.battleType || 'unknown'}`);
+            console.log(`[Battle] linkMicBattle:`, JSON.stringify(data).substring(0, 300));
             // battleStatus: 1 = started, 2 = finished
             if (data.battleStatus === 1) {
                 battleActive = true;
@@ -221,6 +227,7 @@ wss.on('connection', (ws) => {
         });
 
         tiktokConnection.on('linkMicArmies', (data) => {
+            console.log(`[Battle] linkMicArmies:`, JSON.stringify(data).substring(0, 300));
             if (!data.battleArmies || data.battleArmies.length < 2) return;
 
             const armies = data.battleArmies;
@@ -236,16 +243,22 @@ wss.on('connection', (ws) => {
 
         // Envelope events (double/triple score, missions)
         tiktokConnection.on('envelope', (data) => {
-            console.log(`[Envelope]`, JSON.stringify(data).substring(0, 200));
+            console.log(`[Envelope]`, JSON.stringify(data).substring(0, 300));
             ws.send(JSON.stringify({
                 type: 'envelope',
                 data: data,
             }));
         });
 
-        // Listen for rawData to catch mission/multiplier events
-        tiktokConnection.on('roomUpdate', (data) => {
-            console.log(`[RoomUpdate]`, JSON.stringify(data).substring(0, 200));
+        // Subscribe event
+        tiktokConnection.on('subscribe', (data) => {
+            console.log(`[Subscribe]`, JSON.stringify(data).substring(0, 200));
+        });
+
+        // Catch-all: log any emitted event for debugging
+        tiktokConnection.on('rawData', (messageTypeName, binary) => {
+            if (['WebcastChatMessage', 'WebcastGiftMessage', 'WebcastMemberMessage', 'WebcastSocialMessage'].includes(messageTypeName)) return;
+            console.log(`[RawData] Event type: ${messageTypeName}`);
         });
 
         // Auto-reconnect on disconnect
