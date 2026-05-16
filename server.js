@@ -194,12 +194,19 @@ wss.on('connection', (ws) => {
         });
 
         tiktokConnection.on('linkMicBattle', (data) => {
-            console.log(`[Battle] linkMicBattle:`, JSON.stringify(data).substring(0, 300));
-            // battleStatus: 1 = started, 2 = finished
-            if (data.battleStatus === 1) {
+            console.log(`[Battle] linkMicBattle FULL:`, JSON.stringify(data).substring(0, 500));
+            const status = data.battleStatus || data.status || data.action;
+            const hasBattleUsers = data.battleUsers && data.battleUsers.length > 0;
+
+            // Detect battle start: status 1, or battleUsers appearing when battle was not active
+            const isBattleStart = status === 1 || (hasBattleUsers && !battleActive);
+            const isBattleEnd = status === 2 || status === 4 || status === 5;
+
+            if (isBattleStart && !battleActive) {
                 battleActive = true;
                 tenSecFired = false;
-                lastBattleDuration = data.duration || 120;
+                lastBattleDuration = data.duration || data.battleDuration || 120;
+                console.log(`[Battle] ✅ MATCH STARTED! Duration: ${lastBattleDuration}s`);
                 ws.send(JSON.stringify({
                     type: 'battle_start',
                     duration: lastBattleDuration,
@@ -212,6 +219,7 @@ wss.on('connection', (ws) => {
                     remaining--;
                     if (remaining === 10 && !tenSecFired) {
                         tenSecFired = true;
+                        console.log(`[Battle] ⏱️ 10 SECONDS LEFT!`);
                         ws.send(JSON.stringify({ type: 'battle_timer_10' }));
                     }
                     if (remaining <= 0) {
@@ -220,7 +228,8 @@ wss.on('connection', (ws) => {
                     }
                 }, 1000);
 
-            } else if (data.battleStatus === 2) {
+            } else if (isBattleEnd) {
+                console.log(`[Battle] ❌ MATCH ENDED`);
                 battleActive = false;
                 if (battleTimerInterval) { clearInterval(battleTimerInterval); battleTimerInterval = null; }
             }
@@ -229,6 +238,30 @@ wss.on('connection', (ws) => {
         tiktokConnection.on('linkMicArmies', (data) => {
             console.log(`[Battle] linkMicArmies:`, JSON.stringify(data).substring(0, 300));
             if (!data.battleArmies || data.battleArmies.length < 2) return;
+
+            // If armies are updating but we haven't detected battle start, trigger it now
+            if (!battleActive) {
+                battleActive = true;
+                tenSecFired = false;
+                lastBattleDuration = 120;
+                console.log(`[Battle] ✅ MATCH DETECTED via armies! Starting timer (120s)`);
+                ws.send(JSON.stringify({ type: 'battle_start', duration: 120 }));
+                let remaining = 120;
+                if (battleTimerInterval) clearInterval(battleTimerInterval);
+                battleTimerInterval = setInterval(() => {
+                    remaining--;
+                    if (remaining === 10 && !tenSecFired) {
+                        tenSecFired = true;
+                        console.log(`[Battle] ⏱️ 10 SECONDS LEFT!`);
+                        ws.send(JSON.stringify({ type: 'battle_timer_10' }));
+                    }
+                    if (remaining <= 0) {
+                        clearInterval(battleTimerInterval);
+                        battleTimerInterval = null;
+                        battleActive = false;
+                    }
+                }, 1000);
+            }
 
             const armies = data.battleArmies;
             const scores = armies.map(a => a.points || 0);
