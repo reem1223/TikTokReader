@@ -944,23 +944,16 @@
                     addBattleEvent('start');
                 }
 
-                if (data.type === 'battle_timer_10') {
-                    addBattleEvent('timer10');
-                }
-
-                // Double/triple score detected from BattleNoticeMessage
                 if (data.type === 'battle_multiplier') {
                     addBattleEvent(data.multiplier); // 'double' or 'triple'
+                    // Also announce mission with target score if present
+                    if (data.targetScore) {
+                        addBattleEvent('mission', null, data.targetScore);
+                    }
                 }
 
-                // Mission/task detected from BattleTaskMessage
                 if (data.type === 'battle_mission') {
                     addBattleEvent('mission', null, data.score || '???');
-                }
-
-                // Generic battle notice (not yet classified)
-                if (data.type === 'battle_notice') {
-                    console.log('[BattleNotice]', data.text);
                 }
 
                 if (data.type === 'reconnecting') {

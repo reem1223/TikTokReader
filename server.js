@@ -184,156 +184,101 @@ wss.on('connection', (ws) => {
 
         // Battle/Match events
         let battleActive = false;
-        let battleTimerInterval = null;
-        let lastBattleDuration = 0;
-        let tenSecFired = false;
-
-        // Log WebSocket connection upgrade
-        tiktokConnection.on('websocketConnected', (wsState) => {
-            console.log(`[TikTok] WebSocket upgraded: ${wsState.isWebsocketUpgrade}`);
-        });
+        let lastBattleEndTime = 0;
+        let lastTaskTime = 0;
+        let lastMultiplierSent = null;
+        const BATTLE_COOLDOWN = 15000; // 15s cooldown after match end before allowing new match start
+        const TASK_DEBOUNCE = 10000;   // 10s debounce between mission announcements
 
         tiktokConnection.on('linkMicBattle', (data) => {
-            console.log(`[Battle] linkMicBattle FULL:`, JSON.stringify(data).substring(0, 500));
-            const status = data.battleStatus || data.status || data.action;
             const hasBattleUsers = data.battleUsers && data.battleUsers.length > 0;
+            const now = Date.now();
 
-            // Detect battle start: status 1, or battleUsers appearing when battle was not active
-            const isBattleStart = status === 1 || (hasBattleUsers && !battleActive);
-            const isBattleEnd = status === 2 || status === 4 || status === 5;
-
-            if (isBattleStart && !battleActive) {
+            // Only trigger match start if not already in battle AND cooldown passed
+            if (hasBattleUsers && !battleActive && (now - lastBattleEndTime > BATTLE_COOLDOWN)) {
                 battleActive = true;
-                tenSecFired = false;
-                lastBattleDuration = data.duration || data.battleDuration || 120;
-                console.log(`[Battle] ✅ MATCH STARTED! Duration: ${lastBattleDuration}s`);
-                ws.send(JSON.stringify({
-                    type: 'battle_start',
-                    duration: lastBattleDuration,
-                }));
-
-                // Start timer tracking for 10-second warning
-                let remaining = lastBattleDuration;
-                if (battleTimerInterval) clearInterval(battleTimerInterval);
-                battleTimerInterval = setInterval(() => {
-                    remaining--;
-                    if (remaining === 10 && !tenSecFired) {
-                        tenSecFired = true;
-                        console.log(`[Battle] ⏱️ 10 SECONDS LEFT!`);
-                        ws.send(JSON.stringify({ type: 'battle_timer_10' }));
-                    }
-                    if (remaining <= 0) {
-                        clearInterval(battleTimerInterval);
-                        battleTimerInterval = null;
-                    }
-                }, 1000);
-
-            } else if (isBattleEnd) {
-                console.log(`[Battle] ❌ MATCH ENDED`);
-                battleActive = false;
-                if (battleTimerInterval) { clearInterval(battleTimerInterval); battleTimerInterval = null; }
+                console.log(`[Battle] ✅ MATCH STARTED`);
+                ws.send(JSON.stringify({ type: 'battle_start' }));
             }
         });
 
         tiktokConnection.on('linkMicArmies', (data) => {
-            console.log(`[Battle] linkMicArmies:`, JSON.stringify(data).substring(0, 300));
-            if (!data.battleArmies || data.battleArmies.length < 2) return;
-
-            // If armies are updating but we haven't detected battle start, trigger it now
-            if (!battleActive) {
-                battleActive = true;
-                tenSecFired = false;
-                lastBattleDuration = 120;
-                console.log(`[Battle] ✅ MATCH DETECTED via armies! Starting timer (120s)`);
-                ws.send(JSON.stringify({ type: 'battle_start', duration: 120 }));
-                let remaining = 120;
-                if (battleTimerInterval) clearInterval(battleTimerInterval);
-                battleTimerInterval = setInterval(() => {
-                    remaining--;
-                    if (remaining === 10 && !tenSecFired) {
-                        tenSecFired = true;
-                        console.log(`[Battle] ⏱️ 10 SECONDS LEFT!`);
-                        ws.send(JSON.stringify({ type: 'battle_timer_10' }));
-                    }
-                    if (remaining <= 0) {
-                        clearInterval(battleTimerInterval);
-                        battleTimerInterval = null;
-                        battleActive = false;
-                    }
-                }, 1000);
+            // Detect match end from battleStatus 2
+            if (data.battleStatus === 2 && battleActive) {
+                battleActive = false;
+                lastBattleEndTime = Date.now();
+                lastMultiplierSent = null;
+                console.log(`[Battle] ❌ MATCH ENDED`);
+                return;
             }
 
+            // Suppress spam: only forward if armies have actual score data
+            if (!data.battleArmies || data.battleArmies.length < 2) return;
             const armies = data.battleArmies;
             const scores = armies.map(a => a.points || 0);
-            console.log(`[Battle] Scores: ${scores.join(' vs ')}`);
+            if (scores.every(s => s === 0)) return; // skip empty scores
 
             ws.send(JSON.stringify({
                 type: 'battle_update',
                 scores: scores,
-                battleArmies: armies,
             }));
         });
 
-        // Envelope events (double/triple score, missions)
-        tiktokConnection.on('envelope', (data) => {
-            console.log(`[Envelope]`, JSON.stringify(data).substring(0, 300));
-            ws.send(JSON.stringify({
-                type: 'envelope',
-                data: data,
-            }));
-        });
-
-        // Subscribe event
-        tiktokConnection.on('subscribe', (data) => {
-            console.log(`[Subscribe]`, JSON.stringify(data).substring(0, 200));
-        });
-
-        // Catch-all: log and process battle-related raw events
+        // Catch-all: process battle-related raw events
         tiktokConnection.on('rawData', (messageTypeName, binary) => {
-            // Skip high-frequency events
+            // Skip high-frequency known events
             if (['WebcastChatMessage', 'WebcastGiftMessage', 'WebcastMemberMessage', 'WebcastSocialMessage',
-                 'WebcastRoomUserSeqMessage', 'WebcastControlMessage', 'WebcastLinkMicBattle', 'WebcastLinkMicArmies'].includes(messageTypeName)) return;
+                 'WebcastRoomUserSeqMessage', 'WebcastControlMessage', 'WebcastLinkMicBattle',
+                 'WebcastLinkMicArmies', 'WebcastLikeMessage', 'WebcastLinkMicOpponentGifts',
+                 'WebcastGiftPanelUpdateMessage', 'WebcastBarrageMessage'].includes(messageTypeName)) return;
 
             console.log(`[RawData] Event type: ${messageTypeName}`);
 
-            // Extract readable strings from binary protobuf for battle notice/task messages
-            if (messageTypeName === 'WebcastLinkmicBattleNoticeMessage') {
-                try {
-                    const text = binary.toString('utf-8').replace(/[^\x20-\x7E\u0590-\u05FF\u0600-\u06FF\u4e00-\u9fff]/g, ' ').replace(/\s+/g, ' ').trim();
-                    console.log(`[BattleNotice] Decoded text: ${text.substring(0, 300)}`);
-
-                    // Detect multiplier patterns
-                    const lower = text.toLowerCase();
-                    let noticeType = null;
-                    if (lower.includes('3x') || lower.includes('triple') || lower.includes('x3') || lower.includes('3 x')) {
-                        noticeType = 'triple';
-                    } else if (lower.includes('2x') || lower.includes('double') || lower.includes('x2') || lower.includes('2 x')) {
-                        noticeType = 'double';
-                    }
-
-                    if (noticeType) {
-                        console.log(`[BattleNotice] Detected: ${noticeType} score!`);
-                        ws.send(JSON.stringify({ type: 'battle_multiplier', multiplier: noticeType }));
-                    } else {
-                        // Forward raw notice for client to handle
-                        ws.send(JSON.stringify({ type: 'battle_notice', text: text.substring(0, 200) }));
-                    }
-                } catch (e) {
-                    console.error(`[BattleNotice] Parse error:`, e.message);
-                }
-            }
-
+            // Battle Task = missions and multiplier info
             if (messageTypeName === 'WebcastLinkmicBattleTaskMessage') {
                 try {
-                    const text = binary.toString('utf-8').replace(/[^\x20-\x7E\u0590-\u05FF\u0600-\u06FF\u4e00-\u9fff]/g, ' ').replace(/\s+/g, ' ').trim();
-                    console.log(`[BattleTask] Decoded text: ${text.substring(0, 300)}`);
+                    const now = Date.now();
+                    const text = binary.toString('utf-8').replace(/[^\x20-\x7E\u0590-\u05FF\u0600-\u06FF]/g, ' ').replace(/\s+/g, ' ').trim();
+                    console.log(`[BattleTask] Raw: ${text.substring(0, 300)}`);
 
-                    // Try to extract score/target numbers
-                    const numbers = text.match(/\d{2,}/g);
-                    const score = numbers ? numbers[0] : null;
+                    // Parse "multi N" values from the task message
+                    // Pattern: "pm_mt_live_match_instructions_1 multi 2" = double multiplier
+                    // Pattern: "pm_mt_live_match_instructions_2 multi 750" = target score
+                    const multiMatches = text.match(/multi\s+(\d+)/g);
+                    if (multiMatches && multiMatches.length >= 1) {
+                        let multiplier = null;
+                        let targetScore = null;
 
-                    console.log(`[BattleTask] Detected mission! Target score: ${score || 'unknown'}`);
-                    ws.send(JSON.stringify({ type: 'battle_mission', score: score, text: text.substring(0, 200) }));
+                        for (const m of multiMatches) {
+                            const num = parseInt(m.replace('multi', '').trim());
+                            if (num === 2 || num === 3) {
+                                multiplier = num === 2 ? 'double' : 'triple';
+                            } else if (num >= 10) {
+                                targetScore = num.toString();
+                            }
+                        }
+
+                        // Send multiplier announcement (with debounce)
+                        if (multiplier && multiplier !== lastMultiplierSent && (now - lastTaskTime > TASK_DEBOUNCE)) {
+                            lastTaskTime = now;
+                            lastMultiplierSent = multiplier;
+                            console.log(`[BattleTask] ✅ Multiplier: ${multiplier}, Target: ${targetScore || '?'}`);
+                            ws.send(JSON.stringify({
+                                type: 'battle_multiplier',
+                                multiplier: multiplier,
+                                targetScore: targetScore,
+                            }));
+                        }
+
+                        // Send mission announcement (with debounce, only if has target score)
+                        if (targetScore && (now - lastTaskTime > TASK_DEBOUNCE / 2)) {
+                            console.log(`[BattleTask] ✅ Mission target: ${targetScore}`);
+                            ws.send(JSON.stringify({
+                                type: 'battle_mission',
+                                score: targetScore,
+                            }));
+                        }
+                    }
                 } catch (e) {
                     console.error(`[BattleTask] Parse error:`, e.message);
                 }
