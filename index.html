@@ -725,9 +725,14 @@
             <input type="text" id="matchMsgTimer10" value="נשארו 10 שניות! שולחים הכל עכשיו" dir="rtl" />
         </div>
         <div class="msg-template-row">
-            <label>🎯 משימת לייב:</label>
+            <label>🎯 משימת ניקוד:</label>
             <input type="text" id="matchMsgMission" value="משימת לייב התחילה! צריך <score> נקודות לפתוח את הבונוס" dir="rtl" />
             <div class="hint">Use <code>&lt;score&gt;</code> for the required score</div>
+        </div>
+        <div class="msg-template-row">
+            <label>🎁 משימת שולחים:</label>
+            <input type="text" id="matchMsgGifter" value="צריך <score> אנשים לשלוח מתנה כדי לפתוח את הבונוס!" dir="rtl" />
+            <div class="hint">Use <code>&lt;score&gt;</code> for the number of gifters needed</div>
         </div>
         <div class="msg-template-row">
             <label>🏁 סוף מאבק:</label>
@@ -820,6 +825,7 @@
                 matchMsgGlove: document.getElementById('matchMsgGlove').value,
                 matchMsgTimer10: document.getElementById('matchMsgTimer10').value,
                 matchMsgMission: document.getElementById('matchMsgMission').value,
+                matchMsgGifter: document.getElementById('matchMsgGifter').value,
                 matchMsgEnd: document.getElementById('matchMsgEnd').value,
                 muted: isMuted,
             };
@@ -861,6 +867,7 @@
             if (s.matchMsgGlove !== undefined) document.getElementById('matchMsgGlove').value = s.matchMsgGlove;
             if (s.matchMsgTimer10 !== undefined) document.getElementById('matchMsgTimer10').value = s.matchMsgTimer10;
             if (s.matchMsgMission !== undefined) document.getElementById('matchMsgMission').value = s.matchMsgMission;
+            if (s.matchMsgGifter !== undefined) document.getElementById('matchMsgGifter').value = s.matchMsgGifter;
             if (s.matchMsgEnd !== undefined) document.getElementById('matchMsgEnd').value = s.matchMsgEnd;
             if (s.muted) {
                 isMuted = true;
@@ -1005,14 +1012,14 @@
 
                 if (data.type === 'battle_multiplier') {
                     addBattleEvent(data.multiplier); // 'double' or 'triple'
-                    // Also announce mission with target score if present
-                    if (data.targetScore) {
-                        addBattleEvent('mission', null, data.targetScore);
-                    }
                 }
 
                 if (data.type === 'battle_mission') {
-                    addBattleEvent('mission', null, data.score || '???');
+                    if (data.missionType === 'gifter') {
+                        addBattleEvent('gifter_mission', null, data.gifterCount || '?');
+                    } else {
+                        addBattleEvent('mission', null, data.score || '???');
+                    }
                 }
 
                 if (data.type === 'battle_end') {
@@ -1070,6 +1077,7 @@
                 glove: document.getElementById('matchMsgGlove').value || '<username> שלח כפפה!',
                 timer10: document.getElementById('matchMsgTimer10').value || 'נשארו 10 שניות!',
                 mission: document.getElementById('matchMsgMission').value || 'משימת לייב התחילה! צריך <score> נקודות',
+                gifter_mission: document.getElementById('matchMsgGifter').value || 'צריך <score> אנשים לשלוח מתנה כדי לפתוח את הבונוס!',
                 end: document.getElementById('matchMsgEnd').value || 'המאבק נגמר!',
             };
 
@@ -1080,6 +1088,7 @@
                 glove: '🥊 כפפה',
                 timer10: '⏱️ 10 שניות',
                 mission: '🎯 משימה',
+                gifter_mission: '🎁 משימה',
                 end: '🏁 סיום',
             };
 
@@ -1518,6 +1527,7 @@
         document.getElementById('matchMsgGlove').addEventListener('input', saveSettings);
         document.getElementById('matchMsgTimer10').addEventListener('input', saveSettings);
         document.getElementById('matchMsgMission').addEventListener('input', saveSettings);
+        document.getElementById('matchMsgGifter').addEventListener('input', saveSettings);
         document.getElementById('matchMsgEnd').addEventListener('input', saveSettings);
     </script>
 </body>
