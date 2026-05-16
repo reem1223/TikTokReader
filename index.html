@@ -1069,6 +1069,78 @@
             }
         }
 
+        // Hebrew gift name dictionary (common TikTok gifts)
+        const giftNamesHe = {
+            'rose': 'רוז', 'rosa': 'רוזה', 'forever rose': 'רוז לנצח',
+            'galaxy': 'גלקסי', 'universe': 'יוניברס', 'interstellar': 'בין כוכבי',
+            'peacock': 'טווס', 'lion': 'אריה', 'leon the lion': 'ליאון',
+            'elephant': 'פיל', 'corgi': 'קורגי', 'panda': 'פנדה', 'bear': 'דובי',
+            'swan': 'ברבור', 'dolphin': 'דולפין', 'butterfly': 'פרפר',
+            'dragon': 'דרקון', 'unicorn': 'חד קרן', 'cat': 'חתול', 'lucky cat': 'חתול מזל',
+            'finger heart': 'לב', 'heart me': 'לב', 'love you': 'אהבה',
+            'gg': 'ג׳י ג׳י', 'hand wave': 'שלום', 'kiss': 'נשיקה',
+            'ice cream cone': 'גלידה', 'ice cream': 'גלידה',
+            'perfume': 'בושם', 'doughnut': 'סופגנייה', 'cap': 'כובע',
+            'sunglasses': 'משקפי שמש', 'paper crane': 'עגור',
+            'garland': 'זר', 'flower': 'פרח', 'bouquet': 'זר פרחים',
+            'music box': 'תיבת נגינה', 'concert': 'קונצרט',
+            'drama queen': 'דרמה קווין', 'team bracelet': 'צמיד',
+            'tiktok': 'טיקטוק', 'tiktok universe': 'יוניברס טיקטוק',
+            'crown': 'כתר', 'star': 'כוכב', 'diamond': 'יהלום',
+            'fire': 'אש', 'thunder': 'רעם', 'lightning': 'ברק',
+            'rocket': 'טיל', 'confetti': 'קונפטי',
+            'money gun': 'אקדח כסף', 'gift box': 'קופסת מתנה', 'lucky box': 'קופסת מזל',
+            'sports car': 'מכונית ספורט', 'motorcycle': 'אופנוע',
+            'castle': 'טירה', 'private jet': 'מטוס פרטי', 'ship': 'ספינה', 'yacht': 'יאכטה',
+            'planet': 'כוכב לכת', 'to the moon': 'לירח', 'moon': 'ירח', 'sun': 'שמש',
+            'ferris wheel': 'גלגל ענק', 'amusement park': 'לונה פארק',
+            'cheer for you': 'מעודדים', 'wishing bottle': 'בקבוק משאלות',
+            'gold mine': 'מכרה זהב', 'golden beans': 'שעועית זהב',
+            'glove': 'כפפה', 'boxing gloves': 'כפפות אגרוף',
+            'coral': 'אלמוג', 'clownfish': 'דג ליצן', 'whale': 'לווייתן',
+            'cherry blossom': 'פריחת דובדבן', 'snowman': 'איש שלג',
+            'cake': 'עוגה', 'birthday cake': 'עוגת יומולדת',
+            'popcorn': 'פופקורן', 'pizza': 'פיצה', 'taco': 'טאקו',
+            'disco ball': 'כדור דיסקו', 'microphone': 'מיקרופון',
+            'gaming controller': 'שלט משחק', 'trophy': 'גביע',
+            'hammer': 'פטיש', 'bomb': 'פצצה', 'magic wand': 'שרביט קסם',
+            'heart': 'לב', 'love': 'אהבה', 'like': 'לייק',
+            'thumbs up': 'אגודל למעלה', 'clap': 'מחיאת כפיים',
+            'rainbow': 'קשת', 'hot air balloon': 'כדור פורח',
+            'helicopter': 'מסוק', 'airplane': 'מטוס',
+            'train': 'רכבת', 'red car': 'מכונית אדומה',
+        };
+
+        function getGiftNameHe(name) {
+            if (!name) return 'מתנה';
+            const lower = name.toLowerCase().trim();
+            if (giftNamesHe[lower]) return giftNamesHe[lower];
+            // Try partial match (e.g. "Rose" matches "rose")
+            for (const [key, val] of Object.entries(giftNamesHe)) {
+                if (lower.includes(key) || key.includes(lower)) return val;
+            }
+            // Fallback: phonetic transliteration to Hebrew
+            const transMap = {
+                'sh': 'ש', 'ch': 'צ׳', 'th': 'ת', 'ph': 'פ', 'ck': 'ק',
+                'oo': 'או', 'ee': 'אי', 'ou': 'או', 'ai': 'אי', 'ey': 'אי',
+                'a': 'א', 'b': 'ב', 'c': 'ק', 'd': 'ד', 'e': 'ה',
+                'f': 'פ', 'g': 'ג', 'h': 'ה', 'i': 'י', 'j': 'ג׳',
+                'k': 'ק', 'l': 'ל', 'm': 'מ', 'n': 'נ', 'o': 'ו',
+                'p': 'פ', 'q': 'ק', 'r': 'ר', 's': 'ס', 't': 'ט',
+                'u': 'ו', 'v': 'ו', 'w': 'ו', 'x': 'קס', 'y': 'י', 'z': 'ז',
+            };
+            let result = '';
+            let i = 0;
+            const chars = lower.replace(/[^a-z]/g, '');
+            while (i < chars.length) {
+                const two = chars.substring(i, i + 2);
+                if (transMap[two]) { result += transMap[two]; i += 2; }
+                else if (transMap[chars[i]]) { result += transMap[chars[i]]; i++; }
+                else { i++; }
+            }
+            return result || name;
+        }
+
         function addGift(user, giftName, giftCount, giftPicUrl, displayName) {
             commentCount++;
             document.getElementById('commentCount').textContent = commentCount;
@@ -1080,24 +1152,30 @@
 
             const imgTag = giftPicUrl ? `<img class="gift-icon" src="${escapeHtml(giftPicUrl)}" alt="" />` : '🎁';
             const countText = giftCount > 1 ? ` x${giftCount}` : '';
+            const giftNameHe = getGiftNameHe(giftName);
             const template = document.getElementById('giftMsgTemplate').value || 'תודה <username> על המתנה <gift>';
-            const hebrewMsg = template
+            // Visual message keeps original gift name
+            const displayMsg = template
                 .replace(/<username>/gi, nameToShow)
                 .replace(/<gift>/gi, giftName + countText);
+            // TTS message uses Hebrew gift name
+            const ttsMsg = template
+                .replace(/<username>/gi, nameToShow)
+                .replace(/<gift>/gi, giftNameHe + countText);
 
             item.innerHTML = `
                 <div class="comment-user">@${escapeHtml(user)} <span class="gift-badge">🎁 GIFT</span></div>
-                <div class="gift-text">${imgTag} ${escapeHtml(hebrewMsg)}</div>
+                <div class="gift-text">${imgTag} ${escapeHtml(displayMsg)}</div>
                 <div class="comment-time">${new Date().toLocaleTimeString()}</div>
             `;
             list.appendChild(item);
             list.scrollTop = list.scrollHeight;
 
             // Click to read aloud
-            item.addEventListener('click', () => readItemAloud('', hebrewMsg, 'he', item, true));
+            item.addEventListener('click', () => readItemAloud('', ttsMsg, 'he', item, true));
 
             if (!isMuted && document.getElementById('toggleGifts').checked && document.getElementById('toggleHebrew').checked) {
-                speechQueue.push({ user: nameToShow, text: hebrewMsg, lang: 'he', isGift: true, element: item });
+                speechQueue.push({ user: nameToShow, text: ttsMsg, lang: 'he', isGift: true, element: item });
                 processQueue();
             }
         }
