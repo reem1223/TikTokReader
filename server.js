@@ -147,14 +147,23 @@ wss.on('connection', (ws) => {
             });
 
         // Chat messages
+        let initialChatCount = 0;
         tiktokConnection.on('chat', (data) => {
+            initialChatCount++;
             const payload = {
                 type: 'chat',
                 user: data.uniqueId || data.nickname || 'Anonymous',
-                comment: data.comment
+                displayName: data.nickname || data.uniqueId || 'Anonymous',
+                comment: data.comment,
+                isInitial: initialChatCount <= 20,
             };
             console.log(`[Chat] @${payload.user}: ${payload.comment}`);
             ws.send(JSON.stringify(payload));
+        });
+
+        // After initial data is processed, mark subsequent messages as live
+        tiktokConnection.on('websocketConnected', () => {
+            initialChatCount = 999;
         });
 
         // Gift events
@@ -163,6 +172,7 @@ wss.on('connection', (ws) => {
             const payload = {
                 type: 'gift',
                 user: data.uniqueId || data.nickname || 'Anonymous',
+                displayName: data.nickname || data.uniqueId || 'Anonymous',
                 giftName: data.giftName || 'gift',
                 giftCount: data.repeatCount || 1,
                 diamondCount: data.diamondCount || 0,
@@ -177,6 +187,7 @@ wss.on('connection', (ws) => {
             const payload = {
                 type: 'member',
                 user: data.uniqueId || data.nickname || 'Anonymous',
+                displayName: data.nickname || data.uniqueId || 'Anonymous',
             };
             console.log(`[Join] @${payload.user} joined`);
             ws.send(JSON.stringify(payload));

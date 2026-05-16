@@ -185,6 +185,12 @@
             border-radius: 8px;
             animation: fadeIn 0.3s ease;
             background: #222;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .comment-item:hover {
+            background: #2a2a2a;
         }
 
         .comment-item.reading {
@@ -654,6 +660,20 @@
                     <span class="toggle-slider"></span>
                 </label>
             </div>
+            <div class="toggle-row">
+                <span>🇬🇧 English Reading</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggleEnglish" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="toggle-row">
+                <span>🇮🇱 Hebrew Reading</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggleHebrew" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
         </div>
 
         <div class="msg-template-row">
@@ -679,7 +699,7 @@
         <div class="toggle-row">
             <span>⚔️ Match Manager</span>
             <label class="toggle-switch">
-                <input type="checkbox" id="toggleMatch" checked>
+                <input type="checkbox" id="toggleMatch">
                 <span class="toggle-slider"></span>
             </label>
         </div>
@@ -735,6 +755,8 @@
         let speechQueue = [];
         let isSpeaking = false;
         let currentAudio = null;
+        let initialMessageCount = 0;
+        let isLive = false;
 
         // Hebrew character detection regex
         const hebrewRegex = /[\u0590-\u05FF]/;
@@ -761,6 +783,8 @@
                 toggleComments: document.getElementById('toggleComments').checked,
                 toggleGifts: document.getElementById('toggleGifts').checked,
                 toggleJoins: document.getElementById('toggleJoins').checked,
+                toggleEnglish: document.getElementById('toggleEnglish').checked,
+                toggleHebrew: document.getElementById('toggleHebrew').checked,
                 toggleMatch: document.getElementById('toggleMatch').checked,
                 matchMsgStart: document.getElementById('matchMsgStart').value,
                 matchMsgDouble: document.getElementById('matchMsgDouble').value,
@@ -799,6 +823,8 @@
             if (s.toggleComments !== undefined) document.getElementById('toggleComments').checked = s.toggleComments;
             if (s.toggleGifts !== undefined) document.getElementById('toggleGifts').checked = s.toggleGifts;
             if (s.toggleJoins !== undefined) document.getElementById('toggleJoins').checked = s.toggleJoins;
+            if (s.toggleEnglish !== undefined) document.getElementById('toggleEnglish').checked = s.toggleEnglish;
+            if (s.toggleHebrew !== undefined) document.getElementById('toggleHebrew').checked = s.toggleHebrew;
             if (s.toggleMatch !== undefined) document.getElementById('toggleMatch').checked = s.toggleMatch;
             if (s.matchMsgStart !== undefined) document.getElementById('matchMsgStart').value = s.matchMsgStart;
             if (s.matchMsgDouble !== undefined) document.getElementById('matchMsgDouble').value = s.matchMsgDouble;
@@ -916,6 +942,8 @@
                     setStatus('connected', `Connected to @${username} — ${data.roomInfo || 'Live'}`);
                     document.getElementById('connectBtn').style.display = 'none';
                     document.getElementById('disconnectBtn').style.display = 'inline-block';
+                    initialMessageCount = 0;
+                    commentCount = 0;
                     // Clear empty state
                     const list = document.getElementById('commentsList');
                     const empty = list.querySelector('.empty-state');
@@ -923,11 +951,11 @@
                 }
 
                 if (data.type === 'chat') {
-                    addComment(data.user, data.comment);
+                    addComment(data.user, data.comment, data.displayName, data.isInitial);
                 }
 
                 if (data.type === 'gift') {
-                    addGift(data.user, data.giftName, data.giftCount, data.giftPictureUrl);
+                    addGift(data.user, data.giftName, data.giftCount, data.giftPictureUrl, data.displayName);
                     // Detect glove gift for Match Manager
                     const gloveName = (data.giftName || '').toLowerCase();
                     if (gloveName.includes('glove') || gloveName.includes('boxing') || gloveName.includes('כפפ')) {
@@ -936,7 +964,7 @@
                 }
 
                 if (data.type === 'member') {
-                    addJoin(data.user);
+                    addJoin(data.user, data.displayName);
                 }
 
                 // Match Manager events
@@ -1041,10 +1069,11 @@
             }
         }
 
-        function addGift(user, giftName, giftCount, giftPicUrl) {
+        function addGift(user, giftName, giftCount, giftPicUrl, displayName) {
             commentCount++;
             document.getElementById('commentCount').textContent = commentCount;
 
+            const nameToShow = displayName || user;
             const list = document.getElementById('commentsList');
             const item = document.createElement('div');
             item.className = 'comment-item gift rtl';
@@ -1053,7 +1082,7 @@
             const countText = giftCount > 1 ? ` x${giftCount}` : '';
             const template = document.getElementById('giftMsgTemplate').value || 'תודה <username> על המתנה <gift>';
             const hebrewMsg = template
-                .replace(/<username>/gi, user)
+                .replace(/<username>/gi, nameToShow)
                 .replace(/<gift>/gi, giftName + countText);
 
             item.innerHTML = `
@@ -1064,22 +1093,26 @@
             list.appendChild(item);
             list.scrollTop = list.scrollHeight;
 
-            if (!isMuted && document.getElementById('toggleGifts').checked) {
-                speechQueue.push({ user, text: hebrewMsg, lang: 'he', isGift: true, element: item });
+            // Click to read aloud
+            item.addEventListener('click', () => readItemAloud('', hebrewMsg, 'he', item, true));
+
+            if (!isMuted && document.getElementById('toggleGifts').checked && document.getElementById('toggleHebrew').checked) {
+                speechQueue.push({ user: nameToShow, text: hebrewMsg, lang: 'he', isGift: true, element: item });
                 processQueue();
             }
         }
 
-        function addJoin(user) {
+        function addJoin(user, displayName) {
             commentCount++;
             document.getElementById('commentCount').textContent = commentCount;
 
+            const nameToShow = displayName || user;
             const list = document.getElementById('commentsList');
             const item = document.createElement('div');
             item.className = 'comment-item join rtl';
 
             const template = document.getElementById('joinMsgTemplate').value || '<username> הצטרף לשידור';
-            const hebrewMsg = template.replace(/<username>/gi, user);
+            const hebrewMsg = template.replace(/<username>/gi, nameToShow);
 
             item.innerHTML = `
                 <div class="comment-user">@${escapeHtml(user)} <span class="join-badge">👋 JOIN</span></div>
@@ -1089,14 +1122,18 @@
             list.appendChild(item);
             list.scrollTop = list.scrollHeight;
 
-            if (!isMuted && document.getElementById('toggleJoins').checked) {
-                speechQueue.push({ user, text: hebrewMsg, lang: 'he', isGift: true, element: item });
+            // Click to read aloud
+            item.addEventListener('click', () => readItemAloud('', hebrewMsg, 'he', item, true));
+
+            if (!isMuted && document.getElementById('toggleJoins').checked && document.getElementById('toggleHebrew').checked) {
+                speechQueue.push({ user: nameToShow, text: hebrewMsg, lang: 'he', isGift: true, element: item });
                 processQueue();
             }
         }
 
-        function addComment(user, text) {
+        function addComment(user, text, displayName, isInitial) {
             commentCount++;
+            initialMessageCount++;
             document.getElementById('commentCount').textContent = commentCount;
 
             const lang = detectLang(text);
@@ -1104,6 +1141,7 @@
             const item = document.createElement('div');
             item.className = 'comment-item' + (lang === 'he' ? ' rtl' : '');
 
+            const nameToShow = displayName || user;
             const langLabel = lang === 'he' ? 'HE' : 'EN';
             const langClass = lang;
             item.innerHTML = `
@@ -1114,10 +1152,57 @@
             list.appendChild(item);
             list.scrollTop = list.scrollHeight;
 
-            // Queue for TTS
-            if (!isMuted && document.getElementById('toggleComments').checked) {
-                speechQueue.push({ user, text, lang, element: item });
+            // Click to read aloud
+            item.addEventListener('click', () => readItemAloud(nameToShow, text, lang, item));
+
+            // Queue for TTS: skip initial backlog except last 3, check language toggles
+            const shouldRead = !isMuted
+                && document.getElementById('toggleComments').checked
+                && (lang === 'he' ? document.getElementById('toggleHebrew').checked : document.getElementById('toggleEnglish').checked)
+                && (!isInitial || initialMessageCount > (commentCount - 3));
+            if (shouldRead) {
+                speechQueue.push({ user: nameToShow, text, lang, element: item });
                 processQueue();
+            }
+        }
+
+        // Click on a message to read it aloud (bypasses mute/toggles)
+        async function readItemAloud(user, text, lang, element, isGift) {
+            // Cancel current speech
+            speechSynthesis.cancel();
+            if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+            speechQueue = [];
+            isSpeaking = false;
+
+            element.classList.add('reading');
+            const rate = lang === 'he'
+                ? parseFloat(document.getElementById('rateRangeHe').value)
+                : parseFloat(document.getElementById('rateRangeEn').value);
+            const done = () => {
+                element.classList.remove('reading');
+                isSpeaking = false;
+            };
+            isSpeaking = true;
+
+            if (lang === 'he') {
+                try {
+                    const fullText = isGift ? text : `${user} אומר: ${text}`;
+                    const audio = await fetchServerTTS(fullText, 'he');
+                    playBase64Audio(audio, rate, done);
+                } catch (e) {
+                    console.error('Hebrew TTS failed:', e);
+                    done();
+                }
+            } else {
+                const fullText = isGift ? text : `${user} says: ${text}`;
+                const utterance = new SpeechSynthesisUtterance(fullText);
+                const voices = speechSynthesis.getVoices();
+                const idx = document.getElementById('voiceEn').value;
+                if (voices[idx]) utterance.voice = voices[idx];
+                utterance.rate = rate;
+                utterance.onend = done;
+                utterance.onerror = done;
+                speechSynthesis.speak(utterance);
             }
         }
 
@@ -1198,6 +1283,8 @@
         document.getElementById('toggleComments').addEventListener('change', saveSettings);
         document.getElementById('toggleGifts').addEventListener('change', saveSettings);
         document.getElementById('toggleJoins').addEventListener('change', saveSettings);
+        document.getElementById('toggleEnglish').addEventListener('change', saveSettings);
+        document.getElementById('toggleHebrew').addEventListener('change', saveSettings);
         document.getElementById('toggleMatch').addEventListener('change', saveSettings);
         document.getElementById('matchMsgStart').addEventListener('input', saveSettings);
         document.getElementById('matchMsgDouble').addEventListener('input', saveSettings);
