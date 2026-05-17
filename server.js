@@ -253,8 +253,7 @@ wss.on('connection', (ws) => {
             if (!battleActive && scores.some(s => s > 0)) {
                 if (now - connectionTime < CONNECT_GRACE) {
                     console.log(`[Battle] ⏳ Ignoring scores (connect grace — ${Math.round((now - connectionTime) / 1000)}s after connect)`);
-                    battleActive = true; // silently mark as active to suppress further false starts
-                    battleStartTime = now;
+                    // Don't set battleActive — let linkMicBattle handle the real start
                 } else {
                     battleActive = true;
                     battleStartTime = now;
