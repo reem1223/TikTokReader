@@ -197,8 +197,10 @@ wss.on('connection', (ws) => {
         let lastTaskTime = 0;
         let lastMultiplierSent = null;
         let lastMissionSent = null;
+        const connectionTime = Date.now();  // track when this connection was established
         const BATTLE_COOLDOWN = 15000;      // 15s cooldown after match end before allowing new match start
         const MATCH_START_GRACE = 60000;    // 60s grace: ignore battleStatus 2 right after match start (stale data)
+        const CONNECT_GRACE = 30000;        // 30s grace: don't auto-detect battle from scores right after connect
         const TASK_DEBOUNCE = 8000;         // 8s debounce between same-type announcements
 
         tiktokConnection.on('linkMicBattle', (data) => {
@@ -247,13 +249,20 @@ wss.on('connection', (ws) => {
             if (scores.every(s => s === 0)) return;
 
             // If we get live score data and battle isn't active, it means we missed the start
+            // BUT skip this during connect grace period (stale data from reconnect)
             if (!battleActive && scores.some(s => s > 0)) {
-                battleActive = true;
-                battleStartTime = now;
-                lastMultiplierSent = null;
-                lastMissionSent = null;
-                console.log(`[Battle] ✅ MATCH STARTED (detected from live scores)`);
-                ws.send(JSON.stringify({ type: 'battle_start' }));
+                if (now - connectionTime < CONNECT_GRACE) {
+                    console.log(`[Battle] ⏳ Ignoring scores (connect grace — ${Math.round((now - connectionTime) / 1000)}s after connect)`);
+                    battleActive = true; // silently mark as active to suppress further false starts
+                    battleStartTime = now;
+                } else {
+                    battleActive = true;
+                    battleStartTime = now;
+                    lastMultiplierSent = null;
+                    lastMissionSent = null;
+                    console.log(`[Battle] ✅ MATCH STARTED (detected from live scores)`);
+                    ws.send(JSON.stringify({ type: 'battle_start' }));
+                }
             }
 
             ws.send(JSON.stringify({
@@ -291,22 +300,25 @@ wss.on('connection', (ws) => {
                         const rewardNum = multiplierMatch ? parseInt(multiplierMatch[1]) : null;
                         const reward = rewardNum === 2 ? 'כפול' : rewardNum === 3 ? 'משולש' : '';
                         const missionKey = 'gifter_' + gifterCount + '_' + (rewardNum || '');
-                        if (missionKey !== lastMissionSent && (now - lastTaskTime > TASK_DEBOUNCE)) {
-                            lastTaskTime = now;
-                            lastMissionSent = missionKey;
-                            console.log(`[BattleTask] ✅ Gifter mission: ${gifterCount} users need to gift → unlock ${reward || '?'}`);
-                            ws.send(JSON.stringify({
-                                type: 'battle_mission',
-                                missionType: 'gifter',
-                                gifterCount: gifterCount,
-                                reward: reward,
-                            }));
+                        // Announce if different from last OR if debounce expired (allows corrections)
+                        if (missionKey !== lastMissionSent || (now - lastTaskTime > TASK_DEBOUNCE)) {
+                            if (missionKey !== lastMissionSent) {
+                                lastTaskTime = now;
+                                lastMissionSent = missionKey;
+                                console.log(`[BattleTask] ✅ Gifter mission: ${gifterCount} users need to gift → unlock ${reward || '?'}`);
+                                ws.send(JSON.stringify({
+                                    type: 'battle_mission',
+                                    missionType: 'gifter',
+                                    gifterCount: gifterCount,
+                                    reward: reward,
+                                }));
+                            }
                         }
                     } else if (multiplierMatch) {
                         // No gifter context — multiplier is actually ACTIVE
                         const num = parseInt(multiplierMatch[1]);
                         const multiplier = num === 2 ? 'double' : num === 3 ? 'triple' : null;
-                        if (multiplier && multiplier !== lastMultiplierSent && (now - lastTaskTime > TASK_DEBOUNCE)) {
+                        if (multiplier && multiplier !== lastMultiplierSent) {
                             lastTaskTime = now;
                             lastMultiplierSent = multiplier;
                             console.log(`[BattleTask] ✅ Multiplier ACTIVE: ${multiplier}`);
@@ -322,7 +334,7 @@ wss.on('connection', (ws) => {
                     if (sumMatch) {
                         const sumTarget = sumMatch[1];
                         const missionKey = 'sum_' + sumTarget;
-                        if (missionKey !== lastMissionSent && (now - lastTaskTime > TASK_DEBOUNCE)) {
+                        if (missionKey !== lastMissionSent) {
                             lastTaskTime = now;
                             lastMissionSent = missionKey;
                             console.log(`[BattleTask] ✅ Challenge target: ${sumTarget} points`);
