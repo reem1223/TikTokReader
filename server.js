@@ -148,21 +148,14 @@ wss.on('connection', (ws) => {
 
         // Chat messages
         tiktokConnection.on('chat', (data) => {
-            // DEBUG: Dump ALL data keys + full badge details for users with badges
-            if (data.userBadges && data.userBadges.length > 0) {
-                const allKeys = Object.keys(data).filter(k => data[k] !== undefined && data[k] !== null && data[k] !== '' && data[k] !== 0 && data[k] !== false);
-                console.log(`[DEBUG-KEYS] @${data.uniqueId} keys: ${allKeys.join(', ')}`);
-                console.log(`[DEBUG-FULL] @${data.uniqueId} teamMemberLevel=${data.teamMemberLevel} gifterLevel=${data.gifterLevel} followRole=${data.followRole} userSceneTypes=${JSON.stringify(data.userSceneTypes)} badges=${JSON.stringify(data.userBadges)}`);
-            }
             const isMod = data.isModerator ||
                 (data.userBadges && data.userBadges.some(b => b.type && b.type.includes('moderator')));
             const isFollower = data.followRole >= 1;
             const badges = data.userBadges || [];
-            // Fan club badge = badgeSceneType 10 (any level)
             const fanBadge = badges.find(b => b.badgeSceneType === 10);
             const isFan = !!fanBadge;
-            // SuperFan = has the special top gifter image badge (badgeSceneType 6)
-            const isSuperFan = badges.some(b => b.badgeSceneType === 6);
+            const gifterLevel = data.gifterLevel || 0;
+            const teamMemberLevel = data.teamMemberLevel || 0;
             const payload = {
                 type: 'chat',
                 user: data.uniqueId || data.nickname || 'Anonymous',
@@ -171,9 +164,10 @@ wss.on('connection', (ws) => {
                 isMod: !!isMod,
                 isFollower: isFollower,
                 isFan: isFan,
-                isSuperFan: !!isSuperFan,
+                gifterLevel: gifterLevel,
+                teamMemberLevel: teamMemberLevel,
             };
-            const tags = [isMod ? '[MOD]' : '', isFollower ? '[FOL]' : '', isFan ? '[FAN]' : '', isSuperFan ? '[SFAN]' : ''].filter(Boolean).join(' ');
+            const tags = [isMod ? '[MOD]' : '', isFollower ? '[FOL]' : '', isFan ? '[FAN]' : '', gifterLevel ? `[GL:${gifterLevel}]` : ''].filter(Boolean).join(' ');
             console.log(`[Chat] @${payload.user}${tags ? ' ' + tags : ''}: ${payload.comment}`);
             ws.send(JSON.stringify(payload));
         });

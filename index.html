@@ -961,15 +961,12 @@
                         <input type="checkbox" id="toggleFansOnly">
                         <span class="toggle-slider"></span>
                     </label>
-                    <div class="toggle-tooltip">Reads comments from fan club members only. Disables reading of regular comments.</div>
+                    <div class="toggle-tooltip">Reads comments from fans only. Set a minimum gifter level below (0 = any fan).</div>
                 </div>
                 <div class="toggle-item">
-                    <span class="toggle-label" onclick="toggleTooltip(this)">💎 SuperFans</span>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="toggleSuperFansOnly">
-                        <span class="toggle-slider"></span>
-                    </label>
-                    <div class="toggle-tooltip">Reads comments from top fans (level 5+) and top gifters only. Disables reading of regular comments.</div>
+                    <span class="toggle-label" onclick="toggleTooltip(this)">🎚️ Min Level</span>
+                    <input type="number" id="fanMinLevel" min="0" max="100" value="0" style="width:48px;text-align:center;background:#1a1a1a;color:#fff;border:1px solid #333;border-radius:6px;padding:2px 4px;font-size:0.8rem;">
+                    <div class="toggle-tooltip">Minimum gifter level required to be read aloud when the Fans toggle is on. 0 = all fans, 20+ = high-level fans only.</div>
                 </div>
             </div>
             <div class="toggles-row">
@@ -1094,7 +1091,6 @@
                 <button class="log-filter-btn" data-cat="follower" onclick="setLogFilter(this)">👥</button>
                 <button class="log-filter-btn" data-cat="dot" onclick="setLogFilter(this)">⚫</button>
                 <button class="log-filter-btn" data-cat="fan" onclick="setLogFilter(this)">⭐</button>
-                <button class="log-filter-btn" data-cat="superfan" onclick="setLogFilter(this)">💎</button>
             </div>
             <div class="log-list" id="logList"></div>
             <div class="log-count" id="logCount">0 events</div>
@@ -1180,7 +1176,7 @@
                 toggleModOnly: document.getElementById('toggleModOnly').checked,
                 toggleFollowersOnly: document.getElementById('toggleFollowersOnly').checked,
                 toggleFansOnly: document.getElementById('toggleFansOnly').checked,
-                toggleSuperFansOnly: document.getElementById('toggleSuperFansOnly').checked,
+                fanMinLevel: document.getElementById('fanMinLevel').value,
                 toggleMatch: document.getElementById('toggleMatch').checked,
                 matchMsgStart: document.getElementById('matchMsgStart').value,
                 matchMsgDouble: document.getElementById('matchMsgDouble').value,
@@ -1227,7 +1223,7 @@
             if (s.toggleModOnly !== undefined) document.getElementById('toggleModOnly').checked = s.toggleModOnly;
             if (s.toggleFollowersOnly !== undefined) document.getElementById('toggleFollowersOnly').checked = s.toggleFollowersOnly;
             if (s.toggleFansOnly !== undefined) document.getElementById('toggleFansOnly').checked = s.toggleFansOnly;
-            if (s.toggleSuperFansOnly !== undefined) document.getElementById('toggleSuperFansOnly').checked = s.toggleSuperFansOnly;
+            if (s.fanMinLevel !== undefined) document.getElementById('fanMinLevel').value = s.fanMinLevel;
             if (s.toggleMatch !== undefined) document.getElementById('toggleMatch').checked = s.toggleMatch;
             if (s.matchMsgStart !== undefined) document.getElementById('matchMsgStart').value = s.matchMsgStart;
             if (s.matchMsgDouble !== undefined) document.getElementById('matchMsgDouble').value = s.matchMsgDouble;
@@ -1372,7 +1368,7 @@
                 }
 
                 if (data.type === 'chat') {
-                    addComment(data.user, data.comment, data.displayName, data.isMod, data.isFollower, data.isFan, data.isSuperFan);
+                    addComment(data.user, data.comment, data.displayName, data.isMod, data.isFollower, data.isFan, data.gifterLevel || 0);
                 }
 
                 if (data.type === 'gift') {
@@ -1755,11 +1751,11 @@
             }
         }
 
-        function addComment(user, text, displayName, isMod, isFollower, isFan, isSuperFan) {
+        function addComment(user, text, displayName, isMod, isFollower, isFan, gifterLevel) {
             commentCount++;
             document.getElementById('commentCount').textContent = commentCount;
             const isDot = text.trimStart().startsWith('.');
-            logEvent('chat', user, text, { isMod: !!isMod, isFollower: !!isFollower, isDot: isDot, isFan: !!isFan, isSuperFan: !!isSuperFan });
+            logEvent('chat', user, text, { isMod: !!isMod, isFollower: !!isFollower, isDot: isDot, isFan: !!isFan, gifterLevel: gifterLevel });
 
             const lang = detectLang(text);
             const list = document.getElementById('commentsList');
@@ -1772,8 +1768,7 @@
             let badges = `<span class="lang-badge ${langClass}">${langLabel}</span>`;
             if (isMod) badges += ' <span class="comment-badge mod" title="Moderator">🛡️</span>';
             if (isFollower) badges += ' <span class="comment-badge follow" title="Follower">👥</span>';
-            if (isFan) badges += ' <span class="comment-badge fan" title="Fan">⭐</span>';
-            if (isSuperFan) badges += ' <span class="comment-badge superfan" title="SuperFan">💎</span>';
+            if (isFan) badges += ` <span class="comment-badge fan" title="Fan (GL:${gifterLevel})">⭐</span>`;
             if (isDot) badges += ' <span class="comment-badge dot" title="Dot command">⚫</span>';
             item.innerHTML = `
                 <div class="comment-user">@${escapeHtml(user)} ${badges}</div>
@@ -1791,15 +1786,14 @@
             const modOnly = document.getElementById('toggleModOnly').checked;
             const followersOnly = document.getElementById('toggleFollowersOnly').checked;
             const fansOnly = document.getElementById('toggleFansOnly').checked;
-            const superFansOnly = document.getElementById('toggleSuperFansOnly').checked;
+            const fanMinLevel = parseInt(document.getElementById('fanMinLevel').value) || 0;
             let shouldRead = !isMuted
                 && document.getElementById('toggleComments').checked
                 && (lang === 'he' ? document.getElementById('toggleHebrew').checked : document.getElementById('toggleEnglish').checked);
             if (shouldRead && dotOnly && !text.trimStart().startsWith('.')) shouldRead = false;
             if (shouldRead && modOnly && !isMod) shouldRead = false;
             if (shouldRead && followersOnly && !isFollower) shouldRead = false;
-            if (shouldRead && fansOnly && !isFan) shouldRead = false;
-            if (shouldRead && superFansOnly && !isSuperFan) shouldRead = false;
+            if (shouldRead && fansOnly && (!isFan || gifterLevel < fanMinLevel)) shouldRead = false;
             if (shouldRead) {
                 speechQueue.push({ user: nameToShow, text, lang, element: item });
                 processQueue();
@@ -1929,7 +1923,7 @@
         document.getElementById('toggleModOnly').addEventListener('change', saveSettings);
         document.getElementById('toggleFollowersOnly').addEventListener('change', saveSettings);
         document.getElementById('toggleFansOnly').addEventListener('change', saveSettings);
-        document.getElementById('toggleSuperFansOnly').addEventListener('change', saveSettings);
+        document.getElementById('fanMinLevel').addEventListener('input', saveSettings);
         document.getElementById('toggleMatch').addEventListener('change', saveSettings);
         document.getElementById('matchMsgStart').addEventListener('input', saveSettings);
         document.getElementById('matchMsgDouble').addEventListener('input', saveSettings);
@@ -1996,7 +1990,6 @@
                     if (logFilter === 'follower' && !e.flags.isFollower) return false;
                     if (logFilter === 'dot' && !e.flags.isDot) return false;
                     if (logFilter === 'fan' && !e.flags.isFan) return false;
-                    if (logFilter === 'superfan' && !e.flags.isSuperFan) return false;
                     if (logFilter === 'chat' && e.cat !== 'chat') return false;
                     if (logFilter === 'gift' && e.cat !== 'gift') return false;
                     if (logFilter === 'join' && e.cat !== 'join') return false;
@@ -2023,8 +2016,7 @@
                 const flags = [];
                 if (e.flags.isMod) flags.push('🛡️');
                 if (e.flags.isFollower) flags.push('👥');
-                if (e.flags.isFan) flags.push('⭐');
-                if (e.flags.isSuperFan) flags.push('💎');
+                if (e.flags.isFan) flags.push(`⭐${e.flags.gifterLevel ? '(' + e.flags.gifterLevel + ')' : ''}`);
                 if (e.flags.isDot) flags.push('⚫');
                 const flagStr = flags.length ? ' ' + flags.join('') : '';
                 return `<div class="log-entry">
