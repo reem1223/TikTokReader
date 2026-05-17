@@ -718,6 +718,153 @@
             direction: rtl;
             text-align: right;
         }
+
+        .log-btn {
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid #444;
+            background: #1a1a1a;
+            color: #ccc;
+            font-size: 0.85rem;
+            cursor: pointer;
+            font-weight: 600;
+            transition: 0.2s;
+        }
+
+        .log-btn:hover {
+            background: #2a2a2a;
+            color: #25f4ee;
+            border-color: #25f4ee;
+        }
+
+        .log-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .log-overlay.visible {
+            display: flex;
+        }
+
+        .log-panel {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 600px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .log-header {
+            padding: 14px 16px;
+            border-bottom: 1px solid #262626;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .log-header h3 {
+            font-size: 1rem;
+            color: #25f4ee;
+            margin: 0;
+        }
+
+        .log-close {
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 1.4rem;
+            cursor: pointer;
+        }
+
+        .log-close:hover { color: #fe2c55; }
+
+        .log-filters {
+            padding: 10px 16px;
+            border-bottom: 1px solid #262626;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .log-filters input[type="text"] {
+            flex: 1;
+            min-width: 120px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid #333;
+            background: #0f0f0f;
+            color: #fff;
+            font-size: 0.8rem;
+        }
+
+        .log-filter-btn {
+            padding: 4px 10px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            background: #0f0f0f;
+            color: #888;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .log-filter-btn.active {
+            background: #25f4ee;
+            color: #000;
+            border-color: #25f4ee;
+            font-weight: 600;
+        }
+
+        .log-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 16px;
+        }
+
+        .log-entry {
+            padding: 6px 0;
+            border-bottom: 1px solid #1f1f1f;
+            font-size: 0.8rem;
+            color: #ccc;
+        }
+
+        .log-entry-time {
+            color: #666;
+            font-size: 0.7rem;
+            margin-right: 6px;
+        }
+
+        .log-entry-cat {
+            font-size: 0.65rem;
+            padding: 1px 5px;
+            border-radius: 3px;
+            margin-right: 6px;
+            font-weight: 600;
+        }
+
+        .log-entry-cat.chat { background: #1a2a3a; color: #60a5fa; }
+        .log-entry-cat.gift { background: #2a1a2a; color: #f472b6; }
+        .log-entry-cat.join { background: #1a2a1a; color: #4ade80; }
+        .log-entry-cat.battle { background: #2a1a1a; color: #fe2c55; }
+
+        .log-count {
+            font-size: 0.7rem;
+            color: #666;
+            padding: 8px 16px;
+            text-align: center;
+            border-top: 1px solid #262626;
+        }
     </style>
 </head>
 <body>
@@ -751,8 +898,8 @@
         </div>
         <div class="speed-row">
             <label>Speed (HE):</label>
-            <input type="range" id="rateRangeHe" min="0.5" max="2" step="0.1" value="1" oninput="document.getElementById('speedValHe').textContent = this.value + 'x'" />
-            <span class="speed-val" id="speedValHe">1x</span>
+            <input type="range" id="rateRangeHe" min="0.5" max="2" step="0.1" value="1.4" oninput="document.getElementById('speedValHe').textContent = this.value + 'x'" />
+            <span class="speed-val" id="speedValHe">1.4x</span>
         </div>
 
         <div class="toggles-section">
@@ -777,7 +924,7 @@
                 <div class="toggle-item">
                     <span class="toggle-label" onclick="toggleTooltip(this)">🇬🇧 English</span>
                     <label class="toggle-switch">
-                        <input type="checkbox" id="toggleEnglish" checked>
+                        <input type="checkbox" id="toggleEnglish">
                         <span class="toggle-slider"></span>
                     </label>
                     <div class="toggle-tooltip">Reads English comments. Supports multi language.</div>
@@ -821,7 +968,7 @@
                 <div class="toggle-item">
                     <span class="toggle-label" onclick="toggleTooltip(this)">👋 Joins</span>
                     <label class="toggle-switch">
-                        <input type="checkbox" id="toggleJoins" checked>
+                        <input type="checkbox" id="toggleJoins">
                         <span class="toggle-slider"></span>
                     </label>
                     <div class="toggle-tooltip">Reads all names of the viewers that join the stream.</div>
@@ -831,7 +978,7 @@
 
         <div class="msg-template-row">
             <label>🎁 Gift Message:</label>
-            <input type="text" id="giftMsgTemplate" value="תודה <username> על המתנה <gift>" />
+            <input type="text" id="giftMsgTemplate" value="תודה <username> על הגיפט <gift>" />
             <div class="hint">Use <code>&lt;username&gt;</code> for the gifter's name and <code>&lt;gift&gt;</code> for the gift name</div>
         </div>
         <div class="msg-template-row">
@@ -840,9 +987,12 @@
             <div class="hint">Use <code>&lt;username&gt;</code> for the joining user's name</div>
         </div>
 
-        <div style="margin-top: 12px; display: flex; justify-content: center;">
+        <div style="margin-top: 12px; display: flex; justify-content: center; gap: 10px;">
             <button class="mute-toggle" id="muteBtn" onclick="toggleMute()">
                 🔊 Reading Aloud
+            </button>
+            <button class="log-btn" onclick="openEventLog()">
+                📋 Event Log
             </button>
         </div>
     </div>
@@ -909,6 +1059,27 @@
                 </svg>
                 <span>Comments will appear here</span>
             </div>
+        </div>
+    </div>
+
+    <div class="log-overlay" id="logOverlay" onclick="if(event.target===this)closeEventLog()">
+        <div class="log-panel">
+            <div class="log-header">
+                <h3>📋 Event Log</h3>
+                <button class="log-close" onclick="closeEventLog()">&times;</button>
+            </div>
+            <div class="log-filters">
+                <input type="text" id="logSearch" placeholder="Search by word, time, or date..." oninput="renderLog()" />
+                <button class="log-filter-btn active" data-cat="all" onclick="setLogFilter(this)">All</button>
+                <button class="log-filter-btn" data-cat="chat" onclick="setLogFilter(this)">💬</button>
+                <button class="log-filter-btn" data-cat="gift" onclick="setLogFilter(this)">🎁</button>
+                <button class="log-filter-btn" data-cat="join" onclick="setLogFilter(this)">👋</button>
+                <button class="log-filter-btn" data-cat="mod" onclick="setLogFilter(this)">🛡️</button>
+                <button class="log-filter-btn" data-cat="follower" onclick="setLogFilter(this)">👥</button>
+                <button class="log-filter-btn" data-cat="dot" onclick="setLogFilter(this)">⚫</button>
+            </div>
+            <div class="log-list" id="logList"></div>
+            <div class="log-count" id="logCount">0 events</div>
         </div>
     </div>
 
@@ -1070,6 +1241,7 @@
             enSelect.innerHTML = '';
 
             let enDefault = -1;
+            let enUsIdx = -1;
             let googleUsIdx = -1;
 
             voices.forEach((voice, i) => {
@@ -1080,11 +1252,13 @@
                 opt.textContent = label;
                 enSelect.appendChild(opt);
                 if (lang.startsWith('en') && enDefault === -1) enDefault = i;
+                if (lang === 'en-us' && enUsIdx === -1) enUsIdx = i;
                 if (voice.name === 'Google US English') googleUsIdx = i;
             });
 
-            // Prefer Google US English, fall back to first English voice
+            // Prefer Google US English > any en-US > first English voice
             if (googleUsIdx !== -1) enSelect.value = googleUsIdx;
+            else if (enUsIdx !== -1) enSelect.value = enUsIdx;
             else if (enDefault !== -1) enSelect.value = enDefault;
 
             // Apply saved settings (overrides defaults)
@@ -1256,6 +1430,7 @@
 
         function addBattleEvent(eventType, user, score, reward) {
             if (!document.getElementById('toggleMatch').checked) return;
+            logEvent('battle', user || '', `${eventType}${score ? ' ' + score : ''}${reward ? ' → ' + reward : ''}`, {});
 
             const templates = {
                 start: document.getElementById('matchMsgStart').value || 'המאבק התחיל!',
@@ -1491,6 +1666,7 @@
         function addGift(user, giftName, giftCount, giftPicUrl, displayName) {
             commentCount++;
             document.getElementById('commentCount').textContent = commentCount;
+            logEvent('gift', user, `${giftCount}x ${giftName}`, {});
 
             const nameToShow = displayName || user;
             const list = document.getElementById('commentsList');
@@ -1530,6 +1706,7 @@
         function addJoin(user, displayName) {
             commentCount++;
             document.getElementById('commentCount').textContent = commentCount;
+            logEvent('join', user, 'joined', {});
 
             const nameToShow = displayName || user;
             const list = document.getElementById('commentsList');
@@ -1559,6 +1736,8 @@
         function addComment(user, text, displayName, isMod, isFollower) {
             commentCount++;
             document.getElementById('commentCount').textContent = commentCount;
+            const isDot = text.trimStart().startsWith('.');
+            logEvent('chat', user, text, { isMod: !!isMod, isFollower: !!isFollower, isDot: isDot });
 
             const lang = detectLang(text);
             const list = document.getElementById('commentsList');
@@ -1568,7 +1747,6 @@
             const nameToShow = displayName || user;
             const langLabel = lang === 'he' ? 'HE' : 'EN';
             const langClass = lang;
-            const isDot = text.trimStart().startsWith('.');
             let badges = `<span class="lang-badge ${langClass}">${langLabel}</span>`;
             if (isMod) badges += ' <span class="comment-badge mod" title="Moderator">🛡️</span>';
             if (isFollower) badges += ' <span class="comment-badge follow" title="Follower">👥</span>';
@@ -1731,6 +1909,99 @@
         document.getElementById('matchMsgMission').addEventListener('input', saveSettings);
         document.getElementById('matchMsgGifter').addEventListener('input', saveSettings);
         document.getElementById('matchMsgEnd').addEventListener('input', saveSettings);
+
+        // ===== EVENT LOG SYSTEM =====
+        const LOG_MAX = 1000;
+        const LOG_KEY = 'tiktok_event_log';
+        let logFilter = 'all';
+
+        function getEventLog() {
+            try {
+                return JSON.parse(localStorage.getItem(LOG_KEY)) || [];
+            } catch { return []; }
+        }
+
+        function saveEventLog(log) {
+            localStorage.setItem(LOG_KEY, JSON.stringify(log));
+        }
+
+        function logEvent(category, user, text, flags) {
+            const log = getEventLog();
+            const entry = {
+                ts: Date.now(),
+                cat: category,
+                user: user || '',
+                text: text || '',
+                flags: flags || {},
+            };
+            log.push(entry);
+            if (log.length > LOG_MAX) log.shift();
+            saveEventLog(log);
+        }
+
+        function openEventLog() {
+            document.getElementById('logOverlay').classList.add('visible');
+            renderLog();
+        }
+
+        function closeEventLog() {
+            document.getElementById('logOverlay').classList.remove('visible');
+        }
+
+        function setLogFilter(btn) {
+            document.querySelectorAll('.log-filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            logFilter = btn.dataset.cat;
+            renderLog();
+        }
+
+        function renderLog() {
+            const log = getEventLog();
+            const search = (document.getElementById('logSearch').value || '').toLowerCase();
+            const list = document.getElementById('logList');
+
+            const filtered = log.filter(e => {
+                if (logFilter !== 'all') {
+                    if (logFilter === 'mod' && !e.flags.isMod) return false;
+                    if (logFilter === 'follower' && !e.flags.isFollower) return false;
+                    if (logFilter === 'dot' && !e.flags.isDot) return false;
+                    if (logFilter === 'chat' && e.cat !== 'chat') return false;
+                    if (logFilter === 'gift' && e.cat !== 'gift') return false;
+                    if (logFilter === 'join' && e.cat !== 'join') return false;
+                }
+                if (search) {
+                    const d = new Date(e.ts);
+                    const timeStr = d.toLocaleTimeString();
+                    const dateStr = d.toLocaleDateString();
+                    const haystack = `${e.user} ${e.text} ${timeStr} ${dateStr}`.toLowerCase();
+                    if (!haystack.includes(search)) return false;
+                }
+                return true;
+            });
+
+            const catLabels = { chat: '💬', gift: '🎁', join: '👋', battle: '⚔️' };
+            const catClasses = { chat: 'chat', gift: 'gift', join: 'join', battle: 'battle' };
+
+            // Render most recent first (reversed)
+            list.innerHTML = filtered.slice().reverse().map(e => {
+                const d = new Date(e.ts);
+                const time = d.toLocaleTimeString();
+                const catEmoji = catLabels[e.cat] || '📋';
+                const catClass = catClasses[e.cat] || 'chat';
+                const flags = [];
+                if (e.flags.isMod) flags.push('🛡️');
+                if (e.flags.isFollower) flags.push('👥');
+                if (e.flags.isDot) flags.push('⚫');
+                const flagStr = flags.length ? ' ' + flags.join('') : '';
+                return `<div class="log-entry">
+                    <span class="log-entry-time">${time}</span>
+                    <span class="log-entry-cat ${catClass}">${catEmoji}</span>
+                    <strong>@${escapeHtml(e.user)}</strong>${flagStr} ${escapeHtml(e.text)}
+                </div>`;
+            }).join('');
+
+            document.getElementById('logCount').textContent = `${filtered.length} / ${log.length} events`;
+        }
     </script>
 </body>
 </html>
