@@ -148,32 +148,23 @@ wss.on('connection', (ws) => {
 
         // Chat messages
         tiktokConnection.on('chat', (data) => {
-            // DEBUG: Log all fan-related fields from raw data
-            const debugFields = {
-                user: data.uniqueId,
-                followRole: data.followRole,
-                topGifterRank: data.topGifterRank,
-                isModerator: data.isModerator,
-                isSubscriber: data.isSubscriber,
-                subRole: data.subRole,
-                badgeCount: (data.userBadges || []).length,
-                badges: data.userBadges,
-                followInfo: data.followInfo,
-                fanTicketCount: data.fanTicketCount,
-                gifterLevel: data.gifterLevel,
-            };
-            // Log for every user that has any non-null interesting field
-            if (data.userBadges?.length || data.topGifterRank || data.isSubscriber || data.subRole || data.followInfo || data.fanTicketCount || data.gifterLevel) {
-                console.log(`[DEBUG-FAN] @${data.uniqueId}`, JSON.stringify(debugFields));
+            // DEBUG: Dump ALL data keys + full badge details for users with badges
+            if (data.userBadges && data.userBadges.length > 0) {
+                const allKeys = Object.keys(data).filter(k => data[k] !== undefined && data[k] !== null && data[k] !== '' && data[k] !== 0 && data[k] !== false);
+                console.log(`[DEBUG-KEYS] @${data.uniqueId} keys: ${allKeys.join(', ')}`);
+                console.log(`[DEBUG-FULL] @${data.uniqueId} badges=${JSON.stringify(data.userBadges)} gifterLevel=${data.gifterLevel} followRole=${data.followRole} topGifterRank=${data.topGifterRank}`);
             }
             const isMod = data.isModerator ||
                 (data.userBadges && data.userBadges.some(b => b.type && b.type.includes('moderator')));
             const isFollower = data.followRole >= 1;
             const badges = data.userBadges || [];
-            const fanBadge = badges.find(b => b.type && (b.type.includes('fan_club') || b.type.includes('privilege') || b.name?.toLowerCase().includes('fan')));
+            // Fan club badge = badgeSceneType 10
+            const fanBadge = badges.find(b => b.badgeSceneType === 10);
             const isFan = !!fanBadge;
-            const fanLevel = fanBadge ? (parseInt(fanBadge.level) || (fanBadge.type?.match(/level_(\d+)/) ? parseInt(fanBadge.type.match(/level_(\d+)/)[1]) : 1)) : 0;
-            const isSuperFan = fanLevel >= 5 || (data.topGifterRank && data.topGifterRank <= 3);
+            const fanLevel = fanBadge ? (parseInt(fanBadge.level) || 0) : 0;
+            // SuperFan = fan level >= 20, OR top gifter badge (scene 6), OR gifterLevel >= 20
+            const hasTopGifterBadge = badges.some(b => b.badgeSceneType === 6);
+            const isSuperFan = fanLevel >= 20 || hasTopGifterBadge || (data.gifterLevel && data.gifterLevel >= 20);
             const payload = {
                 type: 'chat',
                 user: data.uniqueId || data.nickname || 'Anonymous',
