@@ -148,9 +148,21 @@ wss.on('connection', (ws) => {
 
         // Chat messages
         tiktokConnection.on('chat', (data) => {
+            // DEBUG: Log raw badge/fan data for first few users with badges
+            if (data.userBadges && data.userBadges.length > 0) {
+                console.log(`[DEBUG-BADGES] @${data.uniqueId} followRole=${data.followRole} topGifterRank=${data.topGifterRank} badges=`, JSON.stringify(data.userBadges));
+            }
+            if (data.followInfo) {
+                console.log(`[DEBUG-FOLLOWINFO] @${data.uniqueId}`, JSON.stringify(data.followInfo));
+            }
             const isMod = data.isModerator ||
                 (data.userBadges && data.userBadges.some(b => b.type && b.type.includes('moderator')));
             const isFollower = data.followRole >= 1;
+            const badges = data.userBadges || [];
+            const fanBadge = badges.find(b => b.type && (b.type.includes('fan_club') || b.type.includes('privilege') || b.name?.toLowerCase().includes('fan')));
+            const isFan = !!fanBadge;
+            const fanLevel = fanBadge ? (parseInt(fanBadge.level) || (fanBadge.type?.match(/level_(\d+)/) ? parseInt(fanBadge.type.match(/level_(\d+)/)[1]) : 1)) : 0;
+            const isSuperFan = fanLevel >= 5 || (data.topGifterRank && data.topGifterRank <= 3);
             const payload = {
                 type: 'chat',
                 user: data.uniqueId || data.nickname || 'Anonymous',
@@ -158,8 +170,11 @@ wss.on('connection', (ws) => {
                 comment: data.comment,
                 isMod: !!isMod,
                 isFollower: isFollower,
+                isFan: isFan,
+                isSuperFan: !!isSuperFan,
             };
-            console.log(`[Chat] @${payload.user}${isMod ? ' [MOD]' : ''}${isFollower ? ' [FOL]' : ''}: ${payload.comment}`);
+            const tags = [isMod ? '[MOD]' : '', isFollower ? '[FOL]' : '', isFan ? '[FAN]' : '', isSuperFan ? '[SFAN]' : ''].filter(Boolean).join(' ');
+            console.log(`[Chat] @${payload.user}${tags ? ' ' + tags : ''}: ${payload.comment}`);
             ws.send(JSON.stringify(payload));
         });
 
