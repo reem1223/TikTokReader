@@ -148,12 +148,23 @@ wss.on('connection', (ws) => {
 
         // Chat messages
         tiktokConnection.on('chat', (data) => {
-            // DEBUG: Log raw badge/fan data for first few users with badges
-            if (data.userBadges && data.userBadges.length > 0) {
-                console.log(`[DEBUG-BADGES] @${data.uniqueId} followRole=${data.followRole} topGifterRank=${data.topGifterRank} badges=`, JSON.stringify(data.userBadges));
-            }
-            if (data.followInfo) {
-                console.log(`[DEBUG-FOLLOWINFO] @${data.uniqueId}`, JSON.stringify(data.followInfo));
+            // DEBUG: Log all fan-related fields from raw data
+            const debugFields = {
+                user: data.uniqueId,
+                followRole: data.followRole,
+                topGifterRank: data.topGifterRank,
+                isModerator: data.isModerator,
+                isSubscriber: data.isSubscriber,
+                subRole: data.subRole,
+                badgeCount: (data.userBadges || []).length,
+                badges: data.userBadges,
+                followInfo: data.followInfo,
+                fanTicketCount: data.fanTicketCount,
+                gifterLevel: data.gifterLevel,
+            };
+            // Log for every user that has any non-null interesting field
+            if (data.userBadges?.length || data.topGifterRank || data.isSubscriber || data.subRole || data.followInfo || data.fanTicketCount || data.gifterLevel) {
+                console.log(`[DEBUG-FAN] @${data.uniqueId}`, JSON.stringify(debugFields));
             }
             const isMod = data.isModerator ||
                 (data.userBadges && data.userBadges.some(b => b.type && b.type.includes('moderator')));
