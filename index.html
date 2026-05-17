@@ -731,8 +731,8 @@
         </div>
         <div class="msg-template-row">
             <label>🎁 משימת שולחים:</label>
-            <input type="text" id="matchMsgGifter" value="צריך <score> אנשים לשלוח מתנה כדי לפתוח את הבונוס!" dir="rtl" />
-            <div class="hint">Use <code>&lt;score&gt;</code> for the number of gifters needed</div>
+            <input type="text" id="matchMsgGifter" value="צריך <score> אנשים לשלוח מתנה כדי לפתוח ניקוד <reward>!" dir="rtl" />
+            <div class="hint">Use <code>&lt;score&gt;</code> for gifters needed, <code>&lt;reward&gt;</code> for the reward (e.g. כפול/משולש)</div>
         </div>
         <div class="msg-template-row">
             <label>🏁 סוף מאבק:</label>
@@ -1016,7 +1016,7 @@
 
                 if (data.type === 'battle_mission') {
                     if (data.missionType === 'gifter') {
-                        addBattleEvent('gifter_mission', null, data.gifterCount || '?');
+                        addBattleEvent('gifter_mission', null, data.gifterCount || '?', data.reward || '');
                     } else {
                         addBattleEvent('mission', null, data.score || '???');
                     }
@@ -1067,7 +1067,7 @@
             document.getElementById('disconnectBtn').style.display = 'none';
         }
 
-        function addBattleEvent(eventType, user, score) {
+        function addBattleEvent(eventType, user, score, reward) {
             if (!document.getElementById('toggleMatch').checked) return;
 
             const templates = {
@@ -1077,7 +1077,7 @@
                 glove: document.getElementById('matchMsgGlove').value || '<username> שלח כפפה!',
                 timer10: document.getElementById('matchMsgTimer10').value || 'נשארו 10 שניות!',
                 mission: document.getElementById('matchMsgMission').value || 'משימת לייב התחילה! צריך <score> נקודות',
-                gifter_mission: document.getElementById('matchMsgGifter').value || 'צריך <score> אנשים לשלוח מתנה כדי לפתוח את הבונוס!',
+                gifter_mission: document.getElementById('matchMsgGifter').value || 'צריך <score> אנשים לשלוח מתנה כדי לפתוח ניקוד <reward>!',
                 end: document.getElementById('matchMsgEnd').value || 'המאבק נגמר!',
             };
 
@@ -1095,6 +1095,7 @@
             let msg = templates[eventType] || '';
             if (user) msg = msg.replace(/<username>/gi, user);
             if (score) msg = msg.replace(/<score>/gi, score);
+            if (reward) msg = msg.replace(/<reward>/gi, reward);
 
             commentCount++;
             document.getElementById('commentCount').textContent = commentCount;

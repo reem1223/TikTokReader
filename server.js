@@ -274,16 +274,37 @@ wss.on('connection', (ws) => {
                     const text = binary.toString('utf-8').replace(/[^\x20-\x7E\u0590-\u05FF\u0600-\u06FF]/g, ' ').replace(/\s+/g, ' ').trim();
                     console.log(`[BattleTask] Raw: ${text.substring(0, 400)}`);
 
-                    // Pattern 1: Multiplier — "instructions_N multi N" (NOT gifter)
-                    // e.g. "pm_mt_live_match_instructions_1 multi 2" = double
+                    // Check for gifter pattern first — if present, the message is a MISSION
+                    // "instructions_1 multi 2" + "gifter_1 multi 3" = "3 gifters needed to unlock double"
+                    // The multiplier in instructions_1 is the REWARD, not an active multiplier
+                    const gifterMatch = text.match(/gifter_\d+\s+multi\s+(\d+)/);
                     const multiplierMatch = text.match(/instructions_\d+\s+multi\s+(\d+)/);
-                    if (multiplierMatch) {
+
+                    if (gifterMatch) {
+                        // It's a gifter mission — multiplier is just the reward description
+                        const gifterCount = gifterMatch[1];
+                        const rewardNum = multiplierMatch ? parseInt(multiplierMatch[1]) : null;
+                        const reward = rewardNum === 2 ? 'כפול' : rewardNum === 3 ? 'משולש' : '';
+                        const missionKey = 'gifter_' + gifterCount + '_' + (rewardNum || '');
+                        if (missionKey !== lastMissionSent && (now - lastTaskTime > TASK_DEBOUNCE)) {
+                            lastTaskTime = now;
+                            lastMissionSent = missionKey;
+                            console.log(`[BattleTask] ✅ Gifter mission: ${gifterCount} users need to gift → unlock ${reward || '?'}`);
+                            ws.send(JSON.stringify({
+                                type: 'battle_mission',
+                                missionType: 'gifter',
+                                gifterCount: gifterCount,
+                                reward: reward,
+                            }));
+                        }
+                    } else if (multiplierMatch) {
+                        // No gifter context — multiplier is actually ACTIVE
                         const num = parseInt(multiplierMatch[1]);
                         const multiplier = num === 2 ? 'double' : num === 3 ? 'triple' : null;
                         if (multiplier && multiplier !== lastMultiplierSent && (now - lastTaskTime > TASK_DEBOUNCE)) {
                             lastTaskTime = now;
                             lastMultiplierSent = multiplier;
-                            console.log(`[BattleTask] ✅ Multiplier: ${multiplier}`);
+                            console.log(`[BattleTask] ✅ Multiplier ACTIVE: ${multiplier}`);
                             ws.send(JSON.stringify({
                                 type: 'battle_multiplier',
                                 multiplier: multiplier,
@@ -291,25 +312,7 @@ wss.on('connection', (ws) => {
                         }
                     }
 
-                    // Pattern 2: Gifter unlock — "instructions_gifter_N multi N"
-                    // e.g. "pm_mt_live_match_instructions_gifter_1 multi 3" = 3 users need to gift
-                    const gifterMatch = text.match(/gifter_\d+\s+multi\s+(\d+)/);
-                    if (gifterMatch) {
-                        const gifterCount = gifterMatch[1];
-                        const missionKey = 'gifter_' + gifterCount;
-                        if (missionKey !== lastMissionSent && (now - lastTaskTime > TASK_DEBOUNCE)) {
-                            lastTaskTime = now;
-                            lastMissionSent = missionKey;
-                            console.log(`[BattleTask] ✅ Gifter mission: ${gifterCount} users need to gift`);
-                            ws.send(JSON.stringify({
-                                type: 'battle_mission',
-                                missionType: 'gifter',
-                                gifterCount: gifterCount,
-                            }));
-                        }
-                    }
-
-                    // Pattern 3: "sum N" — accumulation challenge (e.g., ice challenge, need N total points)
+                    // Pattern: "sum N" — accumulation challenge (e.g., ice challenge, need N total points)
                     const sumMatch = text.match(/sum\s+(\d+)/);
                     if (sumMatch) {
                         const sumTarget = sumMatch[1];
