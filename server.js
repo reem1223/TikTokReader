@@ -148,13 +148,18 @@ wss.on('connection', (ws) => {
 
         // Chat messages
         tiktokConnection.on('chat', (data) => {
+            const isMod = data.isModerator ||
+                (data.userBadges && data.userBadges.some(b => b.type && b.type.includes('moderator')));
+            const isFollower = data.followRole >= 1;
             const payload = {
                 type: 'chat',
                 user: data.uniqueId || data.nickname || 'Anonymous',
                 displayName: data.nickname || data.uniqueId || 'Anonymous',
                 comment: data.comment,
+                isMod: !!isMod,
+                isFollower: isFollower,
             };
-            console.log(`[Chat] @${payload.user}: ${payload.comment}`);
+            console.log(`[Chat] @${payload.user}${isMod ? ' [MOD]' : ''}${isFollower ? ' [FOL]' : ''}: ${payload.comment}`);
             ws.send(JSON.stringify(payload));
         });
 

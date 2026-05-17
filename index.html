@@ -674,6 +674,27 @@
                     <span class="toggle-slider"></span>
                 </label>
             </div>
+            <div class="toggle-row">
+                <span>⚫ Dot Only (starts with .)</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggleDotOnly">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="toggle-row">
+                <span>🛡️ Moderators Only</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggleModOnly">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="toggle-row">
+                <span>👥 Followers Only</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggleFollowersOnly">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
         </div>
 
         <div class="msg-template-row">
@@ -818,6 +839,9 @@
                 toggleJoins: document.getElementById('toggleJoins').checked,
                 toggleEnglish: document.getElementById('toggleEnglish').checked,
                 toggleHebrew: document.getElementById('toggleHebrew').checked,
+                toggleDotOnly: document.getElementById('toggleDotOnly').checked,
+                toggleModOnly: document.getElementById('toggleModOnly').checked,
+                toggleFollowersOnly: document.getElementById('toggleFollowersOnly').checked,
                 toggleMatch: document.getElementById('toggleMatch').checked,
                 matchMsgStart: document.getElementById('matchMsgStart').value,
                 matchMsgDouble: document.getElementById('matchMsgDouble').value,
@@ -860,6 +884,9 @@
             if (s.toggleJoins !== undefined) document.getElementById('toggleJoins').checked = s.toggleJoins;
             if (s.toggleEnglish !== undefined) document.getElementById('toggleEnglish').checked = s.toggleEnglish;
             if (s.toggleHebrew !== undefined) document.getElementById('toggleHebrew').checked = s.toggleHebrew;
+            if (s.toggleDotOnly !== undefined) document.getElementById('toggleDotOnly').checked = s.toggleDotOnly;
+            if (s.toggleModOnly !== undefined) document.getElementById('toggleModOnly').checked = s.toggleModOnly;
+            if (s.toggleFollowersOnly !== undefined) document.getElementById('toggleFollowersOnly').checked = s.toggleFollowersOnly;
             if (s.toggleMatch !== undefined) document.getElementById('toggleMatch').checked = s.toggleMatch;
             if (s.matchMsgStart !== undefined) document.getElementById('matchMsgStart').value = s.matchMsgStart;
             if (s.matchMsgDouble !== undefined) document.getElementById('matchMsgDouble').value = s.matchMsgDouble;
@@ -989,7 +1016,7 @@
                 }
 
                 if (data.type === 'chat') {
-                    addComment(data.user, data.comment, data.displayName);
+                    addComment(data.user, data.comment, data.displayName, data.isMod, data.isFollower);
                 }
 
                 if (data.type === 'gift') {
@@ -1369,7 +1396,7 @@
             }
         }
 
-        function addComment(user, text, displayName) {
+        function addComment(user, text, displayName, isMod, isFollower) {
             commentCount++;
             document.getElementById('commentCount').textContent = commentCount;
 
@@ -1392,10 +1419,16 @@
             // Click to read aloud
             item.addEventListener('click', () => readItemAloud(nameToShow, text, lang, item));
 
-            // Queue for TTS: check language toggles
-            const shouldRead = !isMuted
+            // Queue for TTS: check language toggles and filters
+            const dotOnly = document.getElementById('toggleDotOnly').checked;
+            const modOnly = document.getElementById('toggleModOnly').checked;
+            const followersOnly = document.getElementById('toggleFollowersOnly').checked;
+            let shouldRead = !isMuted
                 && document.getElementById('toggleComments').checked
                 && (lang === 'he' ? document.getElementById('toggleHebrew').checked : document.getElementById('toggleEnglish').checked);
+            if (shouldRead && dotOnly && !text.trimStart().startsWith('.')) shouldRead = false;
+            if (shouldRead && modOnly && !isMod) shouldRead = false;
+            if (shouldRead && followersOnly && !isFollower) shouldRead = false;
             if (shouldRead) {
                 speechQueue.push({ user: nameToShow, text, lang, element: item });
                 processQueue();
@@ -1521,6 +1554,9 @@
         document.getElementById('toggleJoins').addEventListener('change', saveSettings);
         document.getElementById('toggleEnglish').addEventListener('change', saveSettings);
         document.getElementById('toggleHebrew').addEventListener('change', saveSettings);
+        document.getElementById('toggleDotOnly').addEventListener('change', saveSettings);
+        document.getElementById('toggleModOnly').addEventListener('change', saveSettings);
+        document.getElementById('toggleFollowersOnly').addEventListener('change', saveSettings);
         document.getElementById('toggleMatch').addEventListener('change', saveSettings);
         document.getElementById('matchMsgStart').addEventListener('input', saveSettings);
         document.getElementById('matchMsgDouble').addEventListener('input', saveSettings);
