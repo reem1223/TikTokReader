@@ -547,6 +547,12 @@
             font-weight: 600;
         }
 
+        .toggles-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px 16px;
+        }
+
         .match-panel {
             width: 100%;
             max-width: 600px;
@@ -564,6 +570,20 @@
             display: flex;
             align-items: center;
             gap: 8px;
+        }
+
+        .match-panel-body {
+            overflow: hidden;
+            max-height: 0;
+            opacity: 0;
+            transition: max-height 0.3s ease, opacity 0.2s ease, margin 0.3s ease;
+            margin-top: 0;
+        }
+
+        .match-panel-body.expanded {
+            max-height: 800px;
+            opacity: 1;
+            margin-top: 12px;
         }
 
         .match-panel .msg-template-row label {
@@ -639,61 +659,63 @@
 
         <div class="toggles-section">
             <h4>Read Aloud</h4>
-            <div class="toggle-row">
-                <span>💬 Comments</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="toggleComments" checked>
-                    <span class="toggle-slider"></span>
-                </label>
-            </div>
-            <div class="toggle-row">
-                <span>🎁 Gifts</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="toggleGifts" checked>
-                    <span class="toggle-slider"></span>
-                </label>
-            </div>
-            <div class="toggle-row">
-                <span>👋 Joining Users</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="toggleJoins" checked>
-                    <span class="toggle-slider"></span>
-                </label>
-            </div>
-            <div class="toggle-row">
-                <span>🇬🇧 English Reading</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="toggleEnglish" checked>
-                    <span class="toggle-slider"></span>
-                </label>
-            </div>
-            <div class="toggle-row">
-                <span>🇮🇱 Hebrew Reading</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="toggleHebrew" checked>
-                    <span class="toggle-slider"></span>
-                </label>
-            </div>
-            <div class="toggle-row">
-                <span>⚫ Dot Only (starts with .)</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="toggleDotOnly">
-                    <span class="toggle-slider"></span>
-                </label>
-            </div>
-            <div class="toggle-row">
-                <span>🛡️ Moderators Only</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="toggleModOnly">
-                    <span class="toggle-slider"></span>
-                </label>
-            </div>
-            <div class="toggle-row">
-                <span>👥 Followers Only</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="toggleFollowersOnly">
-                    <span class="toggle-slider"></span>
-                </label>
+            <div class="toggles-grid">
+                <div class="toggle-row">
+                    <span>💬 Comments</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggleComments" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="toggle-row">
+                    <span>🎁 Gifts</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggleGifts" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="toggle-row">
+                    <span>👋 Joins</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggleJoins" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="toggle-row">
+                    <span>🇬🇧 English</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggleEnglish" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="toggle-row">
+                    <span>🇮🇱 Hebrew</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggleHebrew" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="toggle-row">
+                    <span>⚫ Dot Only</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggleDotOnly">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="toggle-row">
+                    <span>🛡️ Mods Only</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggleModOnly">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="toggle-row">
+                    <span>👥 Followers Only</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggleFollowersOnly">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
             </div>
         </div>
 
@@ -720,10 +742,11 @@
         <div class="toggle-row">
             <span>⚔️ Match Manager</span>
             <label class="toggle-switch">
-                <input type="checkbox" id="toggleMatch">
+                <input type="checkbox" id="toggleMatch" onchange="toggleMatchPanel()">
                 <span class="toggle-slider"></span>
             </label>
         </div>
+        <div class="match-panel-body" id="matchPanelBody">
         <div class="msg-template-row">
             <label>🥊 התחלת מאבק:</label>
             <input type="text" id="matchMsgStart" value="המאבק התחיל! קדימה שולחים מתנות" dir="rtl" />
@@ -758,6 +781,7 @@
         <div class="msg-template-row">
             <label>🏁 סוף מאבק:</label>
             <input type="text" id="matchMsgEnd" value="המאבק נגמר!" dir="rtl" />
+        </div>
         </div>
     </div>
 
@@ -904,6 +928,17 @@
             }
         }
 
+        function toggleMatchPanel() {
+            const body = document.getElementById('matchPanelBody');
+            const isOn = document.getElementById('toggleMatch').checked;
+            if (isOn) {
+                body.classList.add('expanded');
+            } else {
+                body.classList.remove('expanded');
+            }
+            saveSettings();
+        }
+
         // Populate English voice dropdown
         function loadVoices() {
             const voices = speechSynthesis.getVoices();
@@ -930,6 +965,7 @@
 
             // Apply saved settings (overrides defaults)
             applySettings();
+            toggleMatchPanel();
         }
 
         speechSynthesis.onvoiceschanged = loadVoices;
