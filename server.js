@@ -152,19 +152,17 @@ wss.on('connection', (ws) => {
             if (data.userBadges && data.userBadges.length > 0) {
                 const allKeys = Object.keys(data).filter(k => data[k] !== undefined && data[k] !== null && data[k] !== '' && data[k] !== 0 && data[k] !== false);
                 console.log(`[DEBUG-KEYS] @${data.uniqueId} keys: ${allKeys.join(', ')}`);
-                console.log(`[DEBUG-FULL] @${data.uniqueId} badges=${JSON.stringify(data.userBadges)} gifterLevel=${data.gifterLevel} followRole=${data.followRole} topGifterRank=${data.topGifterRank}`);
+                console.log(`[DEBUG-FULL] @${data.uniqueId} teamMemberLevel=${data.teamMemberLevel} gifterLevel=${data.gifterLevel} followRole=${data.followRole} userSceneTypes=${JSON.stringify(data.userSceneTypes)} badges=${JSON.stringify(data.userBadges)}`);
             }
             const isMod = data.isModerator ||
                 (data.userBadges && data.userBadges.some(b => b.type && b.type.includes('moderator')));
             const isFollower = data.followRole >= 1;
             const badges = data.userBadges || [];
-            // Fan club badge = badgeSceneType 10
+            // Fan club badge = badgeSceneType 10 (any level)
             const fanBadge = badges.find(b => b.badgeSceneType === 10);
             const isFan = !!fanBadge;
-            const fanLevel = fanBadge ? (parseInt(fanBadge.level) || 0) : 0;
-            // SuperFan = fan level >= 20, OR top gifter badge (scene 6), OR gifterLevel >= 20
-            const hasTopGifterBadge = badges.some(b => b.badgeSceneType === 6);
-            const isSuperFan = fanLevel >= 20 || hasTopGifterBadge || (data.gifterLevel && data.gifterLevel >= 20);
+            // SuperFan = has the special top gifter image badge (badgeSceneType 6)
+            const isSuperFan = badges.some(b => b.badgeSceneType === 6);
             const payload = {
                 type: 'chat',
                 user: data.uniqueId || data.nickname || 'Anonymous',
