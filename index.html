@@ -281,6 +281,13 @@
             color: #facc15;
         }
 
+        .comment-badge {
+            display: inline-block;
+            font-size: 0.75rem;
+            vertical-align: middle;
+            cursor: help;
+        }
+
         .empty-state {
             display: flex;
             flex-direction: column;
@@ -1444,8 +1451,13 @@
             const nameToShow = displayName || user;
             const langLabel = lang === 'he' ? 'HE' : 'EN';
             const langClass = lang;
+            const isDot = text.trimStart().startsWith('.');
+            let badges = `<span class="lang-badge ${langClass}">${langLabel}</span>`;
+            if (isMod) badges += ' <span class="comment-badge mod" title="Moderator">🛡️</span>';
+            if (isFollower) badges += ' <span class="comment-badge follow" title="Follower">👥</span>';
+            if (isDot) badges += ' <span class="comment-badge dot" title="Dot command">⚫</span>';
             item.innerHTML = `
-                <div class="comment-user">@${escapeHtml(user)} <span class="lang-badge ${langClass}">${langLabel}</span></div>
+                <div class="comment-user">@${escapeHtml(user)} ${badges}</div>
                 <div class="comment-text">${escapeHtml(text)}</div>
                 <div class="comment-time">${new Date().toLocaleTimeString()}</div>
             `;
