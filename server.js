@@ -109,22 +109,26 @@ wss.on('connection', (ws) => {
     const RECONNECT_DELAYS = [2000, 3000, 5000, 8000, 12000, 20000, 30000, 45000, 60000]; // escalating delays
 
     function connectToTikTok(username) {
-        const mode = usePollingFallback ? 'polling' : 'websocket';
-        const usingCache = cachedRoomId ? ` [roomId:${cachedRoomId}]` : '';
-        console.log(`[TikTok] Connecting to @${username}... [${mode}]${usingCache}${PROXY_URL ? ' (via proxy)' : ''}${reconnectAttempts > 0 ? ` (attempt ${reconnectAttempts + 1})` : ''}`);
-
         // Clean up previous connection to avoid stale state
         if (tiktokConnection) {
             try { tiktokConnection.disconnect(); } catch (e) {}
             tiktokConnection = null;
         }
 
+        // Only use polling if we have a session ID (required by the library)
+        const hasSessionId = !!process.env.TIKTOK_SESSION_ID;
+        const canUsePoll = usePollingFallback && hasSessionId;
+        const mode = canUsePoll ? 'polling' : 'websocket';
+        const usingCache = cachedRoomId ? ` [roomId:${cachedRoomId}]` : '';
+        console.log(`[TikTok] Connecting to @${username}... [${mode}]${usingCache}${PROXY_URL ? ' (via proxy)' : ''}${reconnectAttempts > 0 ? ` (attempt ${reconnectAttempts + 1})` : ''}`);
+
         const options = {
-            processInitialData: true,
+            processInitialData: reconnectAttempts === 0, // Skip initial data on reconnects (stale)
             enableExtendedGiftInfo: !disableGiftInfo,
-            enableWebsocketUpgrade: !usePollingFallback,
-            requestPollingIntervalMs: 2000,
-            sessionId: usePollingFallback ? (process.env.TIKTOK_SESSION_ID || null) : null,
+            enableWebsocketUpgrade: !canUsePoll,
+            enableRequestPolling: true,
+            requestPollingIntervalMs: 1000,
+            sessionId: hasSessionId ? process.env.TIKTOK_SESSION_ID : null,
             emitRawEvents: true,
         };
 
@@ -167,8 +171,12 @@ wss.on('connection', (ws) => {
 
                 // Adapt strategy based on error
                 if (fullErr.includes('websocket upgrade')) {
-                    console.log('[TikTok] WebSocket upgrade refused — switching to polling mode');
-                    usePollingFallback = true;
+                    if (process.env.TIKTOK_SESSION_ID) {
+                        console.log('[TikTok] WebSocket upgrade refused — switching to polling mode');
+                        usePollingFallback = true;
+                    } else {
+                        console.log('[TikTok] WebSocket upgrade refused — will retry (no sessionId for polling)');
+                    }
                 }
                 if (fullErr.includes('403') || fullErr.includes('available gifts')) {
                     console.log('[TikTok] Gift fetch 403 — disabling extended gift info');
