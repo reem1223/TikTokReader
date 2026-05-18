@@ -104,12 +104,14 @@ wss.on('connection', (ws) => {
     let reconnectTimer = null;
     let usePollingFallback = false; // Switch to polling if websocket upgrade is refused
     let disableGiftInfo = false; // Disable extended gift info on 403
+    let cachedRoomId = null; // Cache roomId to skip page scraping on reconnect
     const MAX_RECONNECT_ATTEMPTS = 20;
     const RECONNECT_DELAYS = [2000, 3000, 5000, 8000, 12000, 20000, 30000, 45000, 60000]; // escalating delays
 
     function connectToTikTok(username) {
         const mode = usePollingFallback ? 'polling' : 'websocket';
-        console.log(`[TikTok] Connecting to @${username}... [${mode}]${PROXY_URL ? ' (via proxy)' : ''}${reconnectAttempts > 0 ? ` (attempt ${reconnectAttempts + 1})` : ''}`);
+        const usingCache = cachedRoomId ? ` [roomId:${cachedRoomId}]` : '';
+        console.log(`[TikTok] Connecting to @${username}... [${mode}]${usingCache}${PROXY_URL ? ' (via proxy)' : ''}${reconnectAttempts > 0 ? ` (attempt ${reconnectAttempts + 1})` : ''}`);
 
         // Clean up previous connection to avoid stale state
         if (tiktokConnection) {
@@ -141,9 +143,15 @@ wss.on('connection', (ws) => {
 
         tiktokConnection = new WebcastPushConnection(username, options);
 
-        tiktokConnection.connect()
+        // Pass cached roomId to skip page scraping on reconnect
+        tiktokConnection.connect(cachedRoomId || undefined)
             .then((state) => {
                 reconnectAttempts = 0;
+                // Cache the roomId for future reconnects
+                if (state.roomId) {
+                    cachedRoomId = state.roomId;
+                    console.log(`[TikTok] Cached roomId: ${cachedRoomId}`);
+                }
                 console.log(`[TikTok] ✅ Connected to @${username} [${mode}] — Room: "${state.roomInfo?.title || 'Live'}"`);
                 ws.send(JSON.stringify({
                     type: 'connected',
@@ -162,6 +170,12 @@ wss.on('connection', (ws) => {
                 if (msg.includes('403') || msg.includes('Failed to fetch available gifts')) {
                     console.log('[TikTok] Gift fetch 403 — disabling extended gift info');
                     disableGiftInfo = true;
+                }
+                // If roomId extraction failed but we have no cache, nothing extra to do
+                // If roomId extraction failed WITH a cache, the cache might be stale — clear it
+                if (msg.includes('room_id') && cachedRoomId) {
+                    console.log('[TikTok] Cached roomId may be stale — clearing for next attempt');
+                    cachedRoomId = null;
                 }
 
                 if (!manualDisconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
@@ -464,6 +478,7 @@ wss.on('connection', (ws) => {
             reconnectAttempts = 0;
             usePollingFallback = false;
             disableGiftInfo = false;
+            cachedRoomId = null;
             connectToTikTok(currentUsername);
         }
 
