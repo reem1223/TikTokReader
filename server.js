@@ -69,6 +69,13 @@ const httpServer = http.createServer(async (req, res) => {
         return;
     }
 
+    // Keep-alive endpoint to prevent Render.com spin-down
+    if (req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok', uptime: process.uptime() }));
+        return;
+    }
+
     if (req.url === '/' || req.url === '/index.html') {
         const filePath = path.join(__dirname, 'index.html');
         fs.readFile(filePath, (err, data) => {

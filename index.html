@@ -1558,6 +1558,18 @@
             badge.textContent = text;
         }
 
+        // Keep-alive: ping server every 4 min to prevent Render.com spin-down
+        let keepAliveInterval = null;
+        function startKeepAlive() {
+            stopKeepAlive();
+            keepAliveInterval = setInterval(() => {
+                fetch('/health').catch(() => {});
+            }, 4 * 60 * 1000); // every 4 minutes
+        }
+        function stopKeepAlive() {
+            if (keepAliveInterval) { clearInterval(keepAliveInterval); keepAliveInterval = null; }
+        }
+
         function connect() {
             const username = document.getElementById('usernameInput').value.trim().replace('@', '');
             if (!username) return;
@@ -1581,6 +1593,7 @@
                     document.getElementById('connectBtn').style.display = 'none';
                     document.getElementById('disconnectBtn').style.display = 'inline-block';
                     playConnectSound();
+                    startKeepAlive();
                     // Clear all past events so nothing old gets read
                     const list = document.getElementById('commentsList');
                     list.innerHTML = '';
@@ -1654,6 +1667,7 @@
         }
 
         function disconnect() {
+            stopKeepAlive();
             if (ws) {
                 ws.send(JSON.stringify({ type: 'disconnect' }));
                 ws.close();
