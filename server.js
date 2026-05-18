@@ -159,21 +159,23 @@ wss.on('connection', (ws) => {
                 }));
             })
             .catch((err) => {
-                const msg = err.message || '';
-                console.error(`[TikTok] Connection failed:`, msg);
+                // Safely extract error info (err can contain circular refs)
+                const msg = (err.exception ? err.exception.message : err.message) || '';
+                const info = err.info || '';
+                const fullErr = `${info} — ${msg}`;
+                console.error(`[TikTok] Connection failed:`, fullErr);
 
                 // Adapt strategy based on error
-                if (msg.includes('websocket upgrade')) {
+                if (fullErr.includes('websocket upgrade')) {
                     console.log('[TikTok] WebSocket upgrade refused — switching to polling mode');
                     usePollingFallback = true;
                 }
-                if (msg.includes('403') || msg.includes('Failed to fetch available gifts')) {
+                if (fullErr.includes('403') || fullErr.includes('available gifts')) {
                     console.log('[TikTok] Gift fetch 403 — disabling extended gift info');
                     disableGiftInfo = true;
                 }
-                // If roomId extraction failed but we have no cache, nothing extra to do
                 // If roomId extraction failed WITH a cache, the cache might be stale — clear it
-                if (msg.includes('room_id') && cachedRoomId) {
+                if (fullErr.includes('room_id') && cachedRoomId) {
                     console.log('[TikTok] Cached roomId may be stale — clearing for next attempt');
                     cachedRoomId = null;
                 }
@@ -183,7 +185,7 @@ wss.on('connection', (ws) => {
                 } else {
                     ws.send(JSON.stringify({
                         type: 'error',
-                        message: msg || 'Failed to connect. Is the user live?'
+                        message: fullErr || 'Failed to connect. Is the user live?'
                     }));
                 }
             });
@@ -425,10 +427,14 @@ wss.on('connection', (ws) => {
         });
 
         tiktokConnection.on('error', (err) => {
-            console.error('[TikTok] Error:', err.message || err);
+            // Safely extract error info (err can contain circular refs)
+            const msg = (err.exception ? err.exception.message : err.message) || '';
+            const info = err.info || '';
+            const code = (err.exception && err.exception.code) || '';
+            console.error(`[TikTok] Error: [${info}] ${msg} ${code}`);
             // Reconnect on websocket/network/SSL errors (not on "user not live" type errors)
-            const errStr = JSON.stringify(err) + (err.message || '');
-            if (!manualDisconnect && errStr.match(/ECONNRESET|ETIMEDOUT|ECONNREFUSED|EPIPE|socket|websocket|network|SSL|bad record|tls/i)) {
+            const fullErr = `${info} ${msg} ${code}`;
+            if (!manualDisconnect && fullErr.match(/ECONNRESET|ETIMEDOUT|ECONNREFUSED|EPIPE|socket|websocket|network|SSL|bad record|tls/i)) {
                 scheduleReconnect(username);
             }
         });
