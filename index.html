@@ -1925,6 +1925,20 @@
             return name;
         }
 
+        // Gift combo suppression: track same gift sent rapidly
+        const giftComboTracker = {};
+        const GIFT_COMBO_WINDOW = 1000; // 1 second
+        const GIFT_COMBO_THRESHOLD = 3; // after 3 in 1s, suppress TTS until combo ends
+        const GIFT_COMBO_RESET = 3000; // 3s silence = combo ended
+
+        // Emoji-only detection
+        function isEmojiOnly(text) {
+            const stripped = text.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+            if (!stripped) return true;
+            const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F|\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?|\p{Emoji_Component}|\uFE0F|\u200D)+$/u;
+            return emojiRegex.test(stripped);
+        }
+
         function addGift(user, giftName, giftCount, giftPicUrl, displayName) {
             commentCount++;
             document.getElementById('commentCount').textContent = commentCount;
@@ -1968,7 +1982,29 @@
             // Click to read aloud
             item.addEventListener('click', () => readItemAloud('', ttsMsg, giftLang, item, true));
 
-            if (!isMuted && document.getElementById('toggleGifts').checked) {
+            // Gift combo suppression
+            const comboKey = `${user}::${giftName}`;
+            const now = Date.now();
+            if (!giftComboTracker[comboKey]) {
+                giftComboTracker[comboKey] = { count: 0, firstTime: now, suppressed: false };
+            }
+            const combo = giftComboTracker[comboKey];
+            if (now - combo.firstTime > GIFT_COMBO_WINDOW) {
+                // New window
+                combo.count = 1;
+                combo.firstTime = now;
+                combo.suppressed = false;
+            } else {
+                combo.count++;
+                if (combo.count > GIFT_COMBO_THRESHOLD) {
+                    combo.suppressed = true;
+                }
+            }
+            // Reset combo after silence
+            clearTimeout(combo.resetTimer);
+            combo.resetTimer = setTimeout(() => { delete giftComboTracker[comboKey]; }, GIFT_COMBO_RESET);
+
+            if (!isMuted && document.getElementById('toggleGifts').checked && !combo.suppressed) {
                 speechQueue.push({ user: nameToShow, text: ttsMsg, lang: giftLang, isGift: true, element: item });
                 processQueue();
             }
@@ -2055,6 +2091,7 @@
             if (shouldRead && modOnly && !isMod) shouldRead = false;
             if (shouldRead && followersOnly && !isFollower) shouldRead = false;
             if (shouldRead && fansOnly && (!isFan || gifterLevel < fanMinLevel)) shouldRead = false;
+            if (shouldRead && isEmojiOnly(text)) shouldRead = false;
             if (shouldRead) {
                 speechQueue.push({ user: nameToShow, text, lang, element: item });
                 processQueue();
