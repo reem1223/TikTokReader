@@ -99,12 +99,15 @@ const wss = new WebSocketServer({ server: httpServer });
 wss.on('connection', (ws) => {
     let tiktokConnection = null;
     let currentUsername = null;
+    let currentSessionId = process.env.TIKTOK_SESSION_ID || null;
     let manualDisconnect = false;
     let reconnectAttempts = 0;
     let reconnectTimer = null;
     let usePollingFallback = false; // Switch to polling if websocket upgrade is refused
     let disableGiftInfo = false; // Disable extended gift info on 403
+    let skipProxy = false; // Try without proxy if proxy WS keeps failing
     let cachedRoomId = null; // Cache roomId to skip page scraping on reconnect
+    let wsUpgradeFailCount = 0; // Track consecutive WS upgrade failures
     const MAX_RECONNECT_ATTEMPTS = 20;
     const RECONNECT_DELAYS = [2000, 3000, 5000, 8000, 12000, 20000, 30000, 45000, 60000]; // escalating delays
 
@@ -115,12 +118,18 @@ wss.on('connection', (ws) => {
             tiktokConnection = null;
         }
 
+        // After 2 consecutive WS upgrade failures with proxy, try without proxy
+        if (PROXY_URL && wsUpgradeFailCount >= 2) {
+            skipProxy = !skipProxy; // Alternate between proxy and no-proxy
+        }
+
         // Only use polling if we have a session ID (required by the library)
-        const hasSessionId = !!process.env.TIKTOK_SESSION_ID;
+        const hasSessionId = !!currentSessionId;
         const canUsePoll = usePollingFallback && hasSessionId;
+        const useProxy = PROXY_URL && !skipProxy;
         const mode = canUsePoll ? 'polling' : 'websocket';
         const usingCache = cachedRoomId ? ` [roomId:${cachedRoomId}]` : '';
-        console.log(`[TikTok] Connecting to @${username}... [${mode}]${usingCache}${PROXY_URL ? ' (via proxy)' : ''}${reconnectAttempts > 0 ? ` (attempt ${reconnectAttempts + 1})` : ''}`);
+        console.log(`[TikTok] Connecting to @${username}... [${mode}]${usingCache}${useProxy ? ' (via proxy)' : ' (direct)'}${hasSessionId ? ' (with sessionId)' : ''}${reconnectAttempts > 0 ? ` (attempt ${reconnectAttempts + 1})` : ''}`);
 
         const options = {
             processInitialData: reconnectAttempts === 0, // Skip initial data on reconnects (stale)
@@ -128,11 +137,11 @@ wss.on('connection', (ws) => {
             enableWebsocketUpgrade: !canUsePoll,
             enableRequestPolling: true,
             requestPollingIntervalMs: 1000,
-            sessionId: hasSessionId ? process.env.TIKTOK_SESSION_ID : null,
+            sessionId: currentSessionId || null,
             emitRawEvents: true,
         };
 
-        if (PROXY_URL) {
+        if (useProxy) {
             const agent = new HttpsProxyAgent(PROXY_URL);
             options.requestOptions = {
                 httpsAgent: agent,
@@ -151,6 +160,8 @@ wss.on('connection', (ws) => {
         tiktokConnection.connect(cachedRoomId || undefined)
             .then((state) => {
                 reconnectAttempts = 0;
+                wsUpgradeFailCount = 0;
+                skipProxy = false;
                 // Cache the roomId for future reconnects
                 if (state.roomId) {
                     cachedRoomId = state.roomId;
@@ -170,12 +181,13 @@ wss.on('connection', (ws) => {
                 console.error(`[TikTok] Connection failed:`, fullErr);
 
                 // Adapt strategy based on error
-                if (fullErr.includes('websocket upgrade')) {
-                    if (process.env.TIKTOK_SESSION_ID) {
-                        console.log('[TikTok] WebSocket upgrade refused — switching to polling mode');
+                if (fullErr.includes('websocket upgrade') || fullErr.includes('Upgrade to websocket failed')) {
+                    wsUpgradeFailCount++;
+                    if (currentSessionId) {
+                        console.log('[TikTok] WebSocket upgrade refused — switching to polling mode (sessionId available)');
                         usePollingFallback = true;
                     } else {
-                        console.log('[TikTok] WebSocket upgrade refused — will retry (no sessionId for polling)');
+                        console.log(`[TikTok] WebSocket upgrade refused (${wsUpgradeFailCount}x) — will ${wsUpgradeFailCount >= 2 ? 'try direct' : 'retry'}`);
                     }
                 }
                 if (fullErr.includes('403') || fullErr.includes('available gifts')) {
@@ -499,10 +511,17 @@ wss.on('connection', (ws) => {
 
         if (data.type === 'connect') {
             currentUsername = data.username;
+            // Use session ID from client (localStorage) or fallback to env var
+            if (data.sessionId) {
+                currentSessionId = data.sessionId;
+                console.log('[TikTok] Using client-provided session ID');
+            }
             manualDisconnect = false;
             reconnectAttempts = 0;
             usePollingFallback = false;
             disableGiftInfo = false;
+            skipProxy = false;
+            wsUpgradeFailCount = 0;
             cachedRoomId = null;
             connectToTikTok(currentUsername);
         }

@@ -866,6 +866,68 @@
             border-top: 1px solid #262626;
         }
 
+        .session-btn {
+            background: #333;
+            border: 1px solid #444;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            padding: 8px 12px;
+            transition: background 0.2s;
+        }
+        .session-btn:hover {
+            background: #444;
+        }
+        .session-btn.active {
+            background: #ff00ff33;
+            border-color: #ff00ff;
+        }
+        .session-panel {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin: 8px auto;
+            max-width: 600px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .session-panel label {
+            font-size: 0.8rem;
+            color: #aaa;
+            white-space: nowrap;
+        }
+        .session-panel input {
+            flex: 1;
+            min-width: 180px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid #444;
+            background: #222;
+            color: #fff;
+            font-size: 0.8rem;
+        }
+        .session-panel button {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: none;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            background: #ff00ff;
+            color: #fff;
+        }
+        .session-panel button:last-of-type {
+            background: #333;
+            border: 1px solid #444;
+        }
+        .session-status {
+            font-size: 0.75rem;
+            color: #25f4ee;
+        }
+
         .version-badge {
             font-size: 0.7rem;
             color: #ff00ff;
@@ -955,6 +1017,14 @@
         <input type="text" id="usernameInput" placeholder="Enter TikTok username (without @)" />
         <button id="connectBtn" onclick="connect()">Connect</button>
         <button id="disconnectBtn" onclick="disconnect()">Disconnect</button>
+        <button id="sessionBtn" class="session-btn" onclick="toggleSessionInput()" title="Set TikTok Session ID for better connection stability">🔑</button>
+    </div>
+    <div class="session-panel" id="sessionPanel" style="display:none;">
+        <label>TikTok Session ID:</label>
+        <input type="text" id="sessionIdInput" placeholder="Paste sessionid_ss cookie value here" />
+        <button onclick="saveSessionId()">Save</button>
+        <button onclick="clearSessionId()">Clear</button>
+        <span class="session-status" id="sessionStatus"></span>
     </div>
 
 
@@ -1558,6 +1628,36 @@
             badge.textContent = text;
         }
 
+        // Session ID management
+        const SESSION_KEY = 'tiktok-reader-session-id';
+        function toggleSessionInput() {
+            const panel = document.getElementById('sessionPanel');
+            const btn = document.getElementById('sessionBtn');
+            const visible = panel.style.display !== 'none';
+            panel.style.display = visible ? 'none' : 'flex';
+            btn.classList.toggle('active', !visible);
+        }
+        function saveSessionId() {
+            const val = document.getElementById('sessionIdInput').value.trim();
+            if (!val) return;
+            localStorage.setItem(SESSION_KEY, val);
+            document.getElementById('sessionStatus').textContent = '✓ Saved';
+            setTimeout(() => { document.getElementById('sessionStatus').textContent = ''; }, 2000);
+        }
+        function clearSessionId() {
+            localStorage.removeItem(SESSION_KEY);
+            document.getElementById('sessionIdInput').value = '';
+            document.getElementById('sessionStatus').textContent = '✓ Cleared';
+            setTimeout(() => { document.getElementById('sessionStatus').textContent = ''; }, 2000);
+        }
+        // Load saved session ID on page load
+        (function() {
+            const saved = localStorage.getItem(SESSION_KEY);
+            if (saved) {
+                document.getElementById('sessionIdInput').value = saved;
+            }
+        })();
+
         // Keep-alive: ping server every 4 min to prevent Render.com spin-down
         let keepAliveInterval = null;
         function startKeepAlive() {
@@ -1605,7 +1705,8 @@
             ws = new WebSocket(`${protocol}//${location.host}`);
 
             ws.onopen = () => {
-                ws.send(JSON.stringify({ type: 'connect', username }));
+                const sessionId = localStorage.getItem(SESSION_KEY) || '';
+                ws.send(JSON.stringify({ type: 'connect', username, sessionId }));
             };
 
             ws.onmessage = (event) => {
