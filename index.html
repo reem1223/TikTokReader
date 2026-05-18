@@ -1120,6 +1120,24 @@
             </div>
             <div class="toggles-row">
                 <div class="toggle-item">
+                    <span class="toggle-label" onclick="toggleTooltip(this)">😀 Name Emojis</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggleCommentNameEmojis" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <div class="toggle-tooltip">When off, emojis in usernames won't be read aloud for comments.</div>
+                </div>
+                <div class="toggle-item">
+                    <span class="toggle-label" onclick="toggleTooltip(this)">💬 Text Emojis</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggleCommentTextEmojis" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <div class="toggle-tooltip">When off, emojis in comment text won't be read aloud.</div>
+                </div>
+            </div>
+            <div class="toggles-row">
+                <div class="toggle-item">
                     <span class="toggle-label" onclick="toggleTooltip(this)">🎁 Gifts</span>
                     <label class="toggle-switch">
                         <input type="checkbox" id="toggleGifts" checked>
@@ -1484,6 +1502,8 @@
                 muted: isMuted,
                 toggleGiftEmojis: document.getElementById('toggleGiftEmojis').checked,
                 toggleJoinEmojis: document.getElementById('toggleJoinEmojis').checked,
+                toggleCommentNameEmojis: document.getElementById('toggleCommentNameEmojis').checked,
+                toggleCommentTextEmojis: document.getElementById('toggleCommentTextEmojis').checked,
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
         }
@@ -1544,6 +1564,8 @@
             if (s.matchMsgEndEn !== undefined) document.getElementById('matchMsgEndEn').value = s.matchMsgEndEn;
             if (s.toggleGiftEmojis !== undefined) document.getElementById('toggleGiftEmojis').checked = s.toggleGiftEmojis;
             if (s.toggleJoinEmojis !== undefined) document.getElementById('toggleJoinEmojis').checked = s.toggleJoinEmojis;
+            if (s.toggleCommentNameEmojis !== undefined) document.getElementById('toggleCommentNameEmojis').checked = s.toggleCommentNameEmojis;
+            if (s.toggleCommentTextEmojis !== undefined) document.getElementById('toggleCommentTextEmojis').checked = s.toggleCommentTextEmojis;
             if (s.muted) {
                 isMuted = true;
                 const btn = document.getElementById('muteBtn');
@@ -2272,7 +2294,11 @@
             if (shouldRead && fansOnly && (!isFan || gifterLevel < fanMinLevel)) shouldRead = false;
             if (shouldRead && isEmojiOnly(text)) shouldRead = false;
             if (shouldRead) {
-                speechQueue.push({ user: nameToShow, text, lang, element: item });
+                const readNameEmojis = document.getElementById('toggleCommentNameEmojis').checked;
+                const readTextEmojis = document.getElementById('toggleCommentTextEmojis').checked;
+                const ttsUser = readNameEmojis ? nameToShow : stripEmojis(nameToShow);
+                const ttsText = readTextEmojis ? text : stripEmojis(text);
+                speechQueue.push({ user: ttsUser, text: ttsText, lang, element: item });
                 processQueue();
             }
         }
