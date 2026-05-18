@@ -1323,28 +1323,27 @@
 
     <script>
         // ===== VERSION & CHANGELOG SYSTEM =====
-        const APP_VERSION = '1.5.0';
+        const APP_VERSION = '1.6.0';
         const VERSION_KEY = 'tiktok-reader-seen-version';
 
         const CHANGELOG = {
             version: APP_VERSION,
-            date: '2026-05-18',
+            date: '2026-05-19',
             sections: {
                 new: [
-                    'Fan detection with configurable minimum gifter level',
-                    'Independent language selector (HE/EN) for Gifts and Joins',
-                    'Full English message templates for Gift, Join, and all Match Manager events',
-                    'Event Log with search, filters, and badge display',
-                    'Changelog popup on version updates',
+                    '🔑 Session ID button — paste your TikTok session ID for more stable connections (polling fallback)',
+                    '🔁 Auto-reconnect for browser-to-server WebSocket drops',
+                    '💓 Server-side WebSocket ping/pong to prevent idle disconnects',
+                    '🔇 "Read Emojis" toggle for Gifts and Joins — strip emojis from usernames in TTS',
+                    '🔄 Smart proxy fallback — alternates between proxy and direct connection on failures',
                 ],
                 updated: [
-                    'Battle Manager messages now switch between Hebrew and English based on Hebrew toggle',
-                    'Fan badge shows gifter level on hover',
-                    'Improved toggle layout with tooltips',
+                    'Gift combo suppression now reads only once per 5 seconds (was 1s with 3 threshold)',
+                    'Reconnection logic improved: skips stale initial data on retries, better error handling',
+                    'Connection strategy adapts based on available session ID (polling vs websocket)',
                 ],
                 removed: [
-                    'SuperFan toggle (merged into Fan toggle with min level)',
-                ],
+                ]
             }
         };
 
@@ -2098,7 +2097,7 @@
 
         // Gift combo suppression: track same gift sent rapidly
         const giftComboTracker = {};
-        const GIFT_COMBO_WINDOW = 3000; // 1 second
+        const GIFT_COMBO_WINDOW = 5000; // 5 seconds
         const GIFT_COMBO_THRESHOLD = 1; // after 1 in 1s, suppress duplicates (only read once)
         const GIFT_COMBO_RESET = 3000; // 3s silence = combo ended
 
