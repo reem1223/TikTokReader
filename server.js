@@ -102,18 +102,27 @@ wss.on('connection', (ws) => {
     let manualDisconnect = false;
     let reconnectAttempts = 0;
     let reconnectTimer = null;
-    const MAX_RECONNECT_ATTEMPTS = 10;
-    const RECONNECT_DELAYS = [3000, 5000, 10000, 15000, 30000]; // escalating delays
+    let usePollingFallback = false; // Switch to polling if websocket upgrade is refused
+    let disableGiftInfo = false; // Disable extended gift info on 403
+    const MAX_RECONNECT_ATTEMPTS = 20;
+    const RECONNECT_DELAYS = [2000, 3000, 5000, 8000, 12000, 20000, 30000, 45000, 60000]; // escalating delays
 
     function connectToTikTok(username) {
-        console.log(`[TikTok] Connecting to @${username}...${PROXY_URL ? ' (via proxy)' : ''}${reconnectAttempts > 0 ? ` (attempt ${reconnectAttempts + 1})` : ''}`);
+        const mode = usePollingFallback ? 'polling' : 'websocket';
+        console.log(`[TikTok] Connecting to @${username}... [${mode}]${PROXY_URL ? ' (via proxy)' : ''}${reconnectAttempts > 0 ? ` (attempt ${reconnectAttempts + 1})` : ''}`);
+
+        // Clean up previous connection to avoid stale state
+        if (tiktokConnection) {
+            try { tiktokConnection.disconnect(); } catch (e) {}
+            tiktokConnection = null;
+        }
 
         const options = {
             processInitialData: true,
-            enableExtendedGiftInfo: true,
-            enableWebsocketUpgrade: true,
+            enableExtendedGiftInfo: !disableGiftInfo,
+            enableWebsocketUpgrade: !usePollingFallback,
             requestPollingIntervalMs: 2000,
-            sessionId: null,
+            sessionId: usePollingFallback ? (process.env.TIKTOK_SESSION_ID || null) : null,
             emitRawEvents: true,
         };
 
@@ -135,20 +144,32 @@ wss.on('connection', (ws) => {
         tiktokConnection.connect()
             .then((state) => {
                 reconnectAttempts = 0;
-                console.log(`[TikTok] Connected to @${username} — Room: "${state.roomInfo?.title || 'Live'}"`);
+                console.log(`[TikTok] ✅ Connected to @${username} [${mode}] — Room: "${state.roomInfo?.title || 'Live'}"`);
                 ws.send(JSON.stringify({
                     type: 'connected',
                     roomInfo: state.roomInfo?.title || 'Live'
                 }));
             })
             .catch((err) => {
-                console.error(`[TikTok] Connection failed:`, err.message);
+                const msg = err.message || '';
+                console.error(`[TikTok] Connection failed:`, msg);
+
+                // Adapt strategy based on error
+                if (msg.includes('websocket upgrade')) {
+                    console.log('[TikTok] WebSocket upgrade refused — switching to polling mode');
+                    usePollingFallback = true;
+                }
+                if (msg.includes('403') || msg.includes('Failed to fetch available gifts')) {
+                    console.log('[TikTok] Gift fetch 403 — disabling extended gift info');
+                    disableGiftInfo = true;
+                }
+
                 if (!manualDisconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
                     scheduleReconnect(username);
                 } else {
                     ws.send(JSON.stringify({
                         type: 'error',
-                        message: err.message || 'Failed to connect. Is the user live?'
+                        message: msg || 'Failed to connect. Is the user live?'
                     }));
                 }
             });
@@ -370,6 +391,7 @@ wss.on('connection', (ws) => {
         tiktokConnection.on('disconnected', () => {
             console.log('[TikTok] Disconnected from livestream');
             if (!manualDisconnect) {
+                ws.send(JSON.stringify({ type: 'status', message: 'Connection lost. Attempting to reconnect...' }));
                 scheduleReconnect(username);
             } else {
                 ws.send(JSON.stringify({
@@ -379,16 +401,32 @@ wss.on('connection', (ws) => {
             }
         });
 
+        tiktokConnection.on('streamEnd', (actionId) => {
+            console.log(`[TikTok] Stream ended (action: ${actionId})`);
+            manualDisconnect = true; // Don't reconnect if stream ended
+            ws.send(JSON.stringify({
+                type: 'error',
+                message: 'The livestream has ended.'
+            }));
+        });
+
         tiktokConnection.on('error', (err) => {
-            console.error('[TikTok] Error:', err.message);
+            console.error('[TikTok] Error:', err.message || err);
+            // Reconnect on websocket/network errors (not on "user not live" type errors)
+            if (!manualDisconnect && (err.message || '').match(/ECONNRESET|ETIMEDOUT|socket|websocket|network/i)) {
+                scheduleReconnect(username);
+            }
         });
     }
 
     function scheduleReconnect(username) {
+        // Prevent duplicate reconnect timers
+        if (reconnectTimer) return;
+
         if (manualDisconnect || reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
             ws.send(JSON.stringify({
                 type: 'error',
-                message: 'Disconnected. Max reconnect attempts reached.'
+                message: `Disconnected. All ${MAX_RECONNECT_ATTEMPTS} reconnect attempts failed. Click Connect to try again.`
             }));
             return;
         }
@@ -402,6 +440,7 @@ wss.on('connection', (ws) => {
             delaySec: Math.round(delay / 1000),
         }));
         reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
             if (!manualDisconnect && ws.readyState === 1) {
                 connectToTikTok(username);
             }
@@ -422,6 +461,8 @@ wss.on('connection', (ws) => {
             currentUsername = data.username;
             manualDisconnect = false;
             reconnectAttempts = 0;
+            usePollingFallback = false;
+            disableGiftInfo = false;
             connectToTikTok(currentUsername);
         }
 
