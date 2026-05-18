@@ -412,8 +412,9 @@ wss.on('connection', (ws) => {
 
         tiktokConnection.on('error', (err) => {
             console.error('[TikTok] Error:', err.message || err);
-            // Reconnect on websocket/network errors (not on "user not live" type errors)
-            if (!manualDisconnect && (err.message || '').match(/ECONNRESET|ETIMEDOUT|socket|websocket|network/i)) {
+            // Reconnect on websocket/network/SSL errors (not on "user not live" type errors)
+            const errStr = JSON.stringify(err) + (err.message || '');
+            if (!manualDisconnect && errStr.match(/ECONNRESET|ETIMEDOUT|ECONNREFUSED|EPIPE|socket|websocket|network|SSL|bad record|tls/i)) {
                 scheduleReconnect(username);
             }
         });
