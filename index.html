@@ -2098,7 +2098,7 @@
 
         // Gift combo suppression: track same gift sent rapidly
         const giftComboTracker = {};
-        const GIFT_COMBO_WINDOW = 1000; // 1 second
+        const GIFT_COMBO_WINDOW = 3000; // 1 second
         const GIFT_COMBO_THRESHOLD = 1; // after 1 in 1s, suppress duplicates (only read once)
         const GIFT_COMBO_RESET = 3000; // 3s silence = combo ended
 
