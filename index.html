@@ -1570,9 +1570,32 @@
             if (keepAliveInterval) { clearInterval(keepAliveInterval); keepAliveInterval = null; }
         }
 
+        // Client-side auto-reconnect for WebSocket drops
+        let wasConnected = false;
+        let manuallyDisconnected = false;
+        let wsReconnectTimer = null;
+        let wsReconnectAttempts = 0;
+        const WS_MAX_RECONNECT = 15;
+        const WS_RECONNECT_DELAYS = [2000, 3000, 5000, 8000, 15000, 30000];
+
+        function wsAutoReconnect() {
+            if (manuallyDisconnected || wsReconnectAttempts >= WS_MAX_RECONNECT) return;
+            const delay = WS_RECONNECT_DELAYS[Math.min(wsReconnectAttempts, WS_RECONNECT_DELAYS.length - 1)];
+            wsReconnectAttempts++;
+            setStatus('connecting', `WebSocket lost — reconnecting in ${Math.round(delay/1000)}s... (${wsReconnectAttempts}/${WS_MAX_RECONNECT})`);
+            wsReconnectTimer = setTimeout(() => {
+                wsReconnectTimer = null;
+                const savedUsername = document.getElementById('usernameInput').value.trim().replace('@', '');
+                if (savedUsername && !manuallyDisconnected) {
+                    connect();
+                }
+            }, delay);
+        }
+
         function connect() {
             const username = document.getElementById('usernameInput').value.trim().replace('@', '');
             if (!username) return;
+            manuallyDisconnected = false;
 
             document.getElementById('connectBtn').disabled = true;
             setStatus('connecting', `Connecting to @${username}...`);
@@ -1594,6 +1617,8 @@
                     document.getElementById('disconnectBtn').style.display = 'inline-block';
                     playConnectSound();
                     startKeepAlive();
+                    wasConnected = true;
+                    wsReconnectAttempts = 0;
                     // Clear all past events so nothing old gets read
                     const list = document.getElementById('commentsList');
                     list.innerHTML = '';
@@ -1653,11 +1678,19 @@
             };
 
             ws.onclose = () => {
-                setStatus('disconnected', 'Disconnected');
-                document.getElementById('connectBtn').disabled = false;
-                document.getElementById('connectBtn').style.display = 'inline-block';
-                document.getElementById('disconnectBtn').style.display = 'none';
-                playDisconnectSound();
+                stopKeepAlive();
+                ws = null;
+                if (wasConnected && !manuallyDisconnected) {
+                    // Unexpected drop — auto-reconnect
+                    playDisconnectSound();
+                    wsAutoReconnect();
+                } else {
+                    setStatus('disconnected', 'Disconnected');
+                    document.getElementById('connectBtn').disabled = false;
+                    document.getElementById('connectBtn').style.display = 'inline-block';
+                    document.getElementById('disconnectBtn').style.display = 'none';
+                    if (wasConnected) playDisconnectSound();
+                }
             };
 
             ws.onerror = () => {
@@ -1667,6 +1700,9 @@
         }
 
         function disconnect() {
+            manuallyDisconnected = true;
+            wasConnected = false;
+            if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
             stopKeepAlive();
             if (ws) {
                 ws.send(JSON.stringify({ type: 'disconnect' }));

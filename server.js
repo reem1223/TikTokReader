@@ -470,6 +470,17 @@ wss.on('connection', (ws) => {
 
     console.log('[WS] Client connected');
 
+    // Keep WebSocket alive with periodic pings (prevents Render.com idle timeout)
+    const wsPingInterval = setInterval(() => {
+        if (ws.readyState === 1) {
+            ws.ping();
+        }
+    }, 30000); // every 30 seconds
+
+    ws.on('pong', () => {
+        // Client is alive
+    });
+
     ws.on('message', (message) => {
         let data;
         try {
@@ -501,6 +512,7 @@ wss.on('connection', (ws) => {
 
     ws.on('close', () => {
         console.log('[WS] Client disconnected');
+        clearInterval(wsPingInterval);
         manualDisconnect = true;
         if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
         if (tiktokConnection) {
