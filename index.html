@@ -1156,6 +1156,14 @@
             <input type="text" id="giftMsgTemplateEn" value="Thank you <username> for the <gift>" />
             <div class="hint">English gift TTS. Use <code>&lt;username&gt;</code> and <code>&lt;gift&gt;</code></div>
         </div>
+        <div class="msg-template-row" style="align-items:center;">
+            <label style="min-width:auto;">Read Emojis (Gifts):</label>
+            <label class="toggle-switch" style="margin:0 6px;">
+                <input type="checkbox" id="toggleGiftEmojis" checked>
+                <span class="toggle-slider"></span>
+            </label>
+            <div class="hint" style="margin:0;">When off, emojis in usernames won't be read for gifts</div>
+        </div>
         <div class="msg-template-row">
             <label>👋 Join (HE):</label>
             <input type="text" id="joinMsgTemplate" value="<username> הצטרף לשידור" />
@@ -1165,6 +1173,14 @@
             <label>👋 Join (EN):</label>
             <input type="text" id="joinMsgTemplateEn" value="<username> joined the stream" />
             <div class="hint">English join TTS. Use <code>&lt;username&gt;</code></div>
+        </div>
+        <div class="msg-template-row" style="align-items:center;">
+            <label style="min-width:auto;">Read Emojis (Joins):</label>
+            <label class="toggle-switch" style="margin:0 6px;">
+                <input type="checkbox" id="toggleJoinEmojis" checked>
+                <span class="toggle-slider"></span>
+            </label>
+            <div class="hint" style="margin:0;">When off, emojis in usernames won't be read for joins</div>
         </div>
 
         <div style="margin-top: 12px; display: flex; justify-content: center; gap: 10px;">
@@ -1467,6 +1483,8 @@
                 matchMsgGifterEn: document.getElementById('matchMsgGifterEn').value,
                 matchMsgEndEn: document.getElementById('matchMsgEndEn').value,
                 muted: isMuted,
+                toggleGiftEmojis: document.getElementById('toggleGiftEmojis').checked,
+                toggleJoinEmojis: document.getElementById('toggleJoinEmojis').checked,
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
         }
@@ -1525,6 +1543,8 @@
             if (s.matchMsgMissionEn !== undefined) document.getElementById('matchMsgMissionEn').value = s.matchMsgMissionEn;
             if (s.matchMsgGifterEn !== undefined) document.getElementById('matchMsgGifterEn').value = s.matchMsgGifterEn;
             if (s.matchMsgEndEn !== undefined) document.getElementById('matchMsgEndEn').value = s.matchMsgEndEn;
+            if (s.toggleGiftEmojis !== undefined) document.getElementById('toggleGiftEmojis').checked = s.toggleGiftEmojis;
+            if (s.toggleJoinEmojis !== undefined) document.getElementById('toggleJoinEmojis').checked = s.toggleJoinEmojis;
             if (s.muted) {
                 isMuted = true;
                 const btn = document.getElementById('muteBtn');
@@ -2090,6 +2110,11 @@
             return emojiRegex.test(stripped);
         }
 
+        // Strip emojis from text (keep only letters, numbers, punctuation, spaces)
+        function stripEmojis(text) {
+            return text.replace(/(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F|\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?|\u200D|\uFE0F)/gu, '').replace(/\s{2,}/g, ' ').trim();
+        }
+
         function addGift(user, giftName, giftCount, giftPicUrl, displayName) {
             commentCount++;
             document.getElementById('commentCount').textContent = commentCount;
@@ -2105,14 +2130,16 @@
             const isHe = giftLang === 'he';
 
             // Determine language for TTS
+            const readGiftEmojis = document.getElementById('toggleGiftEmojis').checked;
+            const ttsName = readGiftEmojis ? nameToShow : stripEmojis(nameToShow);
             let ttsMsg;
             if (isHe) {
                 const giftNameHe = getGiftNameHe(giftName);
                 const template = document.getElementById('giftMsgTemplate').value || 'תודה <username> על המתנה <gift>';
-                ttsMsg = template.replace(/<username>/gi, nameToShow).replace(/<gift>/gi, giftNameHe + countText);
+                ttsMsg = template.replace(/<username>/gi, ttsName).replace(/<gift>/gi, giftNameHe + countText);
             } else {
                 const template = document.getElementById('giftMsgTemplateEn').value || 'Thank you <username> for the <gift>';
-                ttsMsg = template.replace(/<username>/gi, nameToShow).replace(/<gift>/gi, giftName + countText);
+                ttsMsg = template.replace(/<username>/gi, ttsName).replace(/<gift>/gi, giftName + countText);
             }
 
             // Visual message
@@ -2172,13 +2199,15 @@
             const joinLang = document.getElementById('joinLang').value;
             const isHe = joinLang === 'he';
 
+            const readJoinEmojis = document.getElementById('toggleJoinEmojis').checked;
+            const ttsName = readJoinEmojis ? nameToShow : stripEmojis(nameToShow);
             let ttsMsg;
             if (isHe) {
                 const template = document.getElementById('joinMsgTemplate').value || '<username> הצטרף לשידור';
-                ttsMsg = template.replace(/<username>/gi, nameToShow);
+                ttsMsg = template.replace(/<username>/gi, ttsName);
             } else {
                 const template = document.getElementById('joinMsgTemplateEn').value || '<username> joined the stream';
-                ttsMsg = template.replace(/<username>/gi, nameToShow);
+                ttsMsg = template.replace(/<username>/gi, ttsName);
             }
 
             item.className = 'comment-item join' + (isHe ? ' rtl' : '');
