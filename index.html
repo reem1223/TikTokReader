@@ -1073,7 +1073,7 @@
                 <div class="toggle-item">
                     <span class="toggle-label" onclick="toggleTooltip(this)">🇬🇧 English</span>
                     <label class="toggle-switch">
-                        <input type="checkbox" id="toggleEnglish">
+                        <input type="checkbox" id="toggleEnglish" checked>
                         <span class="toggle-slider"></span>
                     </label>
                     <div class="toggle-tooltip">Reads English comments. Supports multi language.</div>
@@ -1099,7 +1099,7 @@
                 <div class="toggle-item">
                     <span class="toggle-label" onclick="toggleTooltip(this)">⚫ Dot</span>
                     <label class="toggle-switch">
-                        <input type="checkbox" id="toggleDotOnly">
+                        <input type="checkbox" id="toggleDotOnly" checked>
                         <span class="toggle-slider"></span>
                     </label>
                     <div class="toggle-tooltip">Reads only comments that start with a dot (.) Disables reading of regular comments.</div>
@@ -1122,7 +1122,7 @@
                 <div class="toggle-item">
                     <span class="toggle-label" onclick="toggleTooltip(this)">😀 Name Emojis</span>
                     <label class="toggle-switch">
-                        <input type="checkbox" id="toggleCommentNameEmojis" checked>
+                        <input type="checkbox" id="toggleCommentNameEmojis">
                         <span class="toggle-slider"></span>
                     </label>
                     <div class="toggle-tooltip">When off, emojis in usernames won't be read aloud for comments.</div>
@@ -1130,7 +1130,7 @@
                 <div class="toggle-item">
                     <span class="toggle-label" onclick="toggleTooltip(this)">💬 Text Emojis</span>
                     <label class="toggle-switch">
-                        <input type="checkbox" id="toggleCommentTextEmojis" checked>
+                        <input type="checkbox" id="toggleCommentTextEmojis">
                         <span class="toggle-slider"></span>
                     </label>
                     <div class="toggle-tooltip">When off, emojis in comment text won't be read aloud.</div>
@@ -1166,7 +1166,7 @@
 
         <div class="msg-template-row">
             <label>🎁 Gift (HE):</label>
-            <input type="text" id="giftMsgTemplate" value="תודה <username> על הגיפט <gift>" />
+            <input type="text" id="giftMsgTemplate" value="תודה <username> על ה<gift>" />
             <div class="hint">Hebrew gift TTS. Use <code>&lt;username&gt;</code> and <code>&lt;gift&gt;</code></div>
         </div>
         <div class="msg-template-row">
@@ -1177,7 +1177,7 @@
         <div class="msg-template-row" style="align-items:center;">
             <label style="min-width:auto;">Read Emojis (Gifts):</label>
             <label class="toggle-switch" style="margin:0 6px;">
-                <input type="checkbox" id="toggleGiftEmojis" checked>
+                <input type="checkbox" id="toggleGiftEmojis">
                 <span class="toggle-slider"></span>
             </label>
             <div class="hint" style="margin:0;">When off, emojis in usernames won't be read for gifts</div>
@@ -1195,7 +1195,7 @@
         <div class="msg-template-row" style="align-items:center;">
             <label style="min-width:auto;">Read Emojis (Joins):</label>
             <label class="toggle-switch" style="margin:0 6px;">
-                <input type="checkbox" id="toggleJoinEmojis" checked>
+                <input type="checkbox" id="toggleJoinEmojis">
                 <span class="toggle-slider"></span>
             </label>
             <div class="hint" style="margin:0;">When off, emojis in usernames won't be read for joins</div>
