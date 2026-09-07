@@ -1,4 +1,4 @@
-const { WebcastPushConnection } = require('tiktok-live-connector');
+const { TikTokLiveConnection, WebcastEvent, ControlEvent, SignConfig, UserOfflineError, SignatureRateLimitError } = require('tiktok-live-connector');
 const { WebSocketServer } = require('ws');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 const http = require('http');
@@ -8,6 +8,39 @@ const path = require('path');
 
 const PORT = process.env.PORT || 3000;
 const PROXY_URL = process.env.PROXY_URL || null; // e.g. http://user:pass@proxy.webshare.io:80
+const SIGN_API_KEY = process.env.SIGN_API_KEY || null; // Free key from https://www.eulerstream.com (raises rate limits)
+
+// TikTok requires signed request URLs. Signing is delegated to Euler Stream; without a key the
+// service still works but is rate limited per-IP, which is unreliable on shared hosting.
+if (SIGN_API_KEY) {
+    SignConfig.apiKey = SIGN_API_KEY;
+}
+
+// Badge scene types used by TikTok to describe a user in chat payloads
+const BADGE_SCENE_USER_GRADE = 8; // "gifter level" badge
+const BADGE_SCENE_FAN_CLUB = 10; // fan club badge
+
+// Reads a badge level out of a user's badge list, e.g. the level 26 grade badge
+function getBadgeLevel(user, sceneType) {
+    const badge = (user.badgeList || []).find((b) => b.sceneType === sceneType);
+    const level = badge && badge.privilegeLogExtra && badge.privilegeLogExtra.level;
+    return level ? parseInt(level, 10) || 0 : 0;
+}
+
+// Flattens the protobuf user object into the fields the frontend expects
+function describeUser(data) {
+    const user = data.user || {};
+    const identity = data.userIdentity || {};
+    const fanLevel = getBadgeLevel(user, BADGE_SCENE_FAN_CLUB);
+    return {
+        user: user.displayId || user.nickname || 'Anonymous',
+        displayName: user.nickname || user.displayId || 'Anonymous',
+        isMod: !!identity.isModeratorOfAnchor,
+        isFollower: !!(identity.isFollowerOfAnchor || identity.isMutualFollowingWithAnchor),
+        isFan: fanLevel > 0 || !!identity.isSubscriberOfAnchor,
+        gifterLevel: getBadgeLevel(user, BADGE_SCENE_USER_GRADE),
+    };
+}
 
 // Google Translate TTS — fetches MP3 audio for a given text and language
 function fetchGoogleTTS(text, lang) {
@@ -99,387 +132,182 @@ const wss = new WebSocketServer({ server: httpServer });
 wss.on('connection', (ws) => {
     let tiktokConnection = null;
     let currentUsername = null;
-    let currentSessionId = process.env.TIKTOK_SESSION_ID || null;
     let manualDisconnect = false;
     let reconnectAttempts = 0;
     let reconnectTimer = null;
-    let usePollingFallback = false; // Switch to polling if websocket upgrade is refused
-    let disableGiftInfo = false; // Disable extended gift info on 403
-    let skipProxy = false; // Try without proxy if proxy WS keeps failing
-    let cachedRoomId = null; // Cache roomId to skip page scraping on reconnect
-    let wsUpgradeFailCount = 0; // Track consecutive WS upgrade failures
+    let cachedRoomId = null; // Cache roomId to skip username lookup on reconnect
     const MAX_RECONNECT_ATTEMPTS = 20;
     const RECONNECT_DELAYS = [2000, 3000, 5000, 8000, 12000, 20000, 30000, 45000, 60000]; // escalating delays
 
-    function connectToTikTok(username) {
+    function send(payload) {
+        if (ws.readyState === 1) {
+            ws.send(JSON.stringify(payload));
+        }
+    }
+
+    async function connectToTikTok(username) {
         // Clean up previous connection to avoid stale state
         if (tiktokConnection) {
-            try { tiktokConnection.disconnect(); } catch (e) {}
+            try { await tiktokConnection.disconnect(); } catch (e) {}
             tiktokConnection = null;
         }
 
-        // After 2 consecutive WS upgrade failures with proxy, try without proxy
-        if (PROXY_URL && wsUpgradeFailCount >= 2) {
-            skipProxy = !skipProxy; // Alternate between proxy and no-proxy
-        }
-
-        // Only use polling if we have a session ID (required by the library)
-        const hasSessionId = !!currentSessionId;
-        const canUsePoll = usePollingFallback && hasSessionId;
-        const useProxy = PROXY_URL && !skipProxy;
-        const mode = canUsePoll ? 'polling' : 'websocket';
         const usingCache = cachedRoomId ? ` [roomId:${cachedRoomId}]` : '';
-        console.log(`[TikTok] Connecting to @${username}... [${mode}]${usingCache}${useProxy ? ' (via proxy)' : ' (direct)'}${hasSessionId ? ' (with sessionId)' : ''}${reconnectAttempts > 0 ? ` (attempt ${reconnectAttempts + 1})` : ''}`);
+        console.log(`[TikTok] Connecting to @${username}...${usingCache}${PROXY_URL ? ' (via proxy)' : ' (direct)'}${SIGN_API_KEY ? ' (with sign key)' : ' (anonymous signing)'}${reconnectAttempts > 0 ? ` (attempt ${reconnectAttempts + 1})` : ''}`);
 
         const options = {
             processInitialData: reconnectAttempts === 0, // Skip initial data on reconnects (stale)
-            enableExtendedGiftInfo: !disableGiftInfo,
-            enableWebsocketUpgrade: !canUsePoll,
-            enableRequestPolling: true,
-            requestPollingIntervalMs: 1000,
-            sessionId: currentSessionId || null,
-            emitRawEvents: true,
+            fetchRoomInfoOnConnect: true,
+            enableExtendedGiftInfo: false,
         };
 
-        if (useProxy) {
-            const agent = new HttpsProxyAgent(PROXY_URL);
-            options.requestOptions = {
-                httpsAgent: agent,
-                httpAgent: agent,
-                proxy: false,
-                timeout: 15000,
-            };
-            options.websocketOptions = {
-                agent: agent,
-            };
+        if (SIGN_API_KEY) {
+            options.signApiKey = SIGN_API_KEY;
         }
 
-        tiktokConnection = new WebcastPushConnection(username, options);
+        if (PROXY_URL) {
+            const agent = new HttpsProxyAgent(PROXY_URL);
+            options.webClientOptions = { agent: { https: agent, http: agent } };
+            options.wsClientOptions = { agent };
+        }
 
-        // Pass cached roomId to skip page scraping on reconnect
-        tiktokConnection.connect(cachedRoomId || undefined)
-            .then((state) => {
-                reconnectAttempts = 0;
-                wsUpgradeFailCount = 0;
-                skipProxy = false;
-                // Cache the roomId for future reconnects
-                if (state.roomId) {
-                    cachedRoomId = state.roomId;
-                    console.log(`[TikTok] Cached roomId: ${cachedRoomId}`);
-                }
-                console.log(`[TikTok] ✅ Connected to @${username} [${mode}] — Room: "${state.roomInfo?.title || 'Live'}"`);
-                ws.send(JSON.stringify({
-                    type: 'connected',
-                    roomInfo: state.roomInfo?.title || 'Live'
-                }));
-            })
-            .catch((err) => {
-                // Safely extract error info (err can contain circular refs)
-                const msg = (err.exception ? err.exception.message : err.message) || '';
-                const info = err.info || '';
-                const fullErr = `${info} — ${msg}`;
-                console.error(`[TikTok] Connection failed:`, fullErr);
+        tiktokConnection = new TikTokLiveConnection(username, options);
+        registerEventHandlers(tiktokConnection, username);
 
-                // Adapt strategy based on error
-                if (fullErr.includes('websocket upgrade') || fullErr.includes('Upgrade to websocket failed')) {
-                    wsUpgradeFailCount++;
-                    if (currentSessionId) {
-                        console.log('[TikTok] WebSocket upgrade refused — switching to polling mode (sessionId available)');
-                        usePollingFallback = true;
-                    } else {
-                        console.log(`[TikTok] WebSocket upgrade refused (${wsUpgradeFailCount}x) — will ${wsUpgradeFailCount >= 2 ? 'try direct' : 'retry'}`);
-                    }
-                }
-                if (fullErr.includes('403') || fullErr.includes('available gifts')) {
-                    console.log('[TikTok] Gift fetch 403 — disabling extended gift info');
-                    disableGiftInfo = true;
-                }
-                // If roomId extraction failed WITH a cache, the cache might be stale — clear it
-                if (fullErr.includes('room_id') && cachedRoomId) {
-                    console.log('[TikTok] Cached roomId may be stale — clearing for next attempt');
-                    cachedRoomId = null;
-                }
+        try {
+            // Pass cached roomId to skip the username lookup on reconnect
+            const state = await tiktokConnection.connect(cachedRoomId || undefined);
+            reconnectAttempts = 0;
+            if (state.roomId) {
+                cachedRoomId = state.roomId;
+                console.log(`[TikTok] Cached roomId: ${cachedRoomId}`);
+            }
+            // Anonymous clients often get a stripped room info response, so fall back to a generic label
+            const roomInfo = state.roomInfo || {};
+            const title = roomInfo.title || (roomInfo.data && roomInfo.data.title) || 'Live';
+            console.log(`[TikTok] ✅ Connected to @${username} — Room: "${title}"`);
+            send({ type: 'connected', roomInfo: title });
+        } catch (err) {
+            handleConnectError(err, username);
+        }
+    }
 
-                if (!manualDisconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-                    scheduleReconnect(username);
-                } else {
-                    ws.send(JSON.stringify({
-                        type: 'error',
-                        message: fullErr || 'Failed to connect. Is the user live?'
-                    }));
-                }
-            });
+    function handleConnectError(err, username) {
+        const message = (err && err.message) || 'Unknown error';
+        console.error(`[TikTok] Connection failed: ${message}`);
 
+        // A stale cached roomId will keep failing — drop it so the next attempt re-resolves the username
+        if (cachedRoomId) {
+            console.log('[TikTok] Clearing cached roomId for next attempt');
+            cachedRoomId = null;
+        }
+
+        if (err instanceof UserOfflineError) {
+            // Not an error we can retry our way out of — the stream has to actually start
+            manualDisconnect = true;
+            send({ type: 'error', message: `@${username} is not live right now.` });
+            return;
+        }
+
+        if (err instanceof SignatureRateLimitError) {
+            const waitSec = Math.max(1, Math.round(err.retryAfter || 30));
+            console.log(`[TikTok] Sign server rate limited — retrying in ${waitSec}s${SIGN_API_KEY ? '' : ' (set SIGN_API_KEY to raise the limit)'}`);
+            send({ type: 'status', message: `Rate limited by the signing service. Retrying in ${waitSec}s...` });
+            if (!manualDisconnect) {
+                scheduleReconnect(username, waitSec * 1000);
+            }
+            return;
+        }
+
+        if (!manualDisconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            scheduleReconnect(username);
+        } else {
+            send({ type: 'error', message: message || 'Failed to connect. Is the user live?' });
+        }
+    }
+
+    function registerEventHandlers(connection, username) {
         // Chat messages
-        tiktokConnection.on('chat', (data) => {
-            const isMod = data.isModerator ||
-                (data.userBadges && data.userBadges.some(b => b.type && b.type.includes('moderator')));
-            const isFollower = data.followRole >= 1;
-            const badges = data.userBadges || [];
-            const fanBadge = badges.find(b => b.badgeSceneType === 10);
-            const isFan = !!fanBadge;
-            const gifterLevel = data.gifterLevel || 0;
-            const teamMemberLevel = data.teamMemberLevel || 0;
-            const payload = {
-                type: 'chat',
-                user: data.uniqueId || data.nickname || 'Anonymous',
-                displayName: data.nickname || data.uniqueId || 'Anonymous',
-                comment: data.comment,
-                isMod: !!isMod,
-                isFollower: isFollower,
-                isFan: isFan,
-                gifterLevel: gifterLevel,
-                teamMemberLevel: teamMemberLevel,
-            };
-            const tags = [isMod ? '[MOD]' : '', isFollower ? '[FOL]' : '', isFan ? '[FAN]' : '', gifterLevel ? `[GL:${gifterLevel}]` : ''].filter(Boolean).join(' ');
+        connection.on(WebcastEvent.CHAT, (data) => {
+            const payload = { type: 'chat', ...describeUser(data), comment: data.content };
+            const tags = [
+                payload.isMod ? '[MOD]' : '',
+                payload.isFollower ? '[FOL]' : '',
+                payload.isFan ? '[FAN]' : '',
+                payload.gifterLevel ? `[GL:${payload.gifterLevel}]` : '',
+            ].filter(Boolean).join(' ');
             console.log(`[Chat] @${payload.user}${tags ? ' ' + tags : ''}: ${payload.comment}`);
-            ws.send(JSON.stringify(payload));
+            send(payload);
         });
 
-        // Gift events
-        tiktokConnection.on('gift', (data) => {
-            if (data.giftType === 1 && !data.repeatEnd) return;
+        // Gift events — for streakable gifts wait for the streak to end so we count it once
+        connection.on(WebcastEvent.GIFT, (data) => {
+            const gift = data.gift || {};
+            if (gift.type === 1 && !data.repeatEnd) return;
+            const image = gift.image && gift.image.urlList && gift.image.urlList[0];
             const payload = {
                 type: 'gift',
-                user: data.uniqueId || data.nickname || 'Anonymous',
-                displayName: data.nickname || data.uniqueId || 'Anonymous',
-                giftName: data.giftName || 'gift',
+                ...describeUser(data),
+                giftName: gift.name || 'gift',
                 giftCount: data.repeatCount || 1,
-                diamondCount: data.diamondCount || 0,
-                giftPictureUrl: data.giftPictureUrl || '',
+                diamondCount: gift.diamondCount || 0,
+                giftPictureUrl: image || '',
             };
             console.log(`[Gift] @${payload.user} sent ${payload.giftCount}x ${payload.giftName}`);
-            ws.send(JSON.stringify(payload));
+            send(payload);
         });
 
         // Member join events
-        tiktokConnection.on('member', (data) => {
-            const payload = {
-                type: 'member',
-                user: data.uniqueId || data.nickname || 'Anonymous',
-                displayName: data.nickname || data.uniqueId || 'Anonymous',
-            };
+        connection.on(WebcastEvent.MEMBER, (data) => {
+            const payload = { type: 'member', ...describeUser(data) };
             console.log(`[Join] @${payload.user} joined`);
-            ws.send(JSON.stringify(payload));
-        });
-
-        // Battle/Match events
-        let battleActive = false;
-        let battleStartTime = 0;
-        let lastBattleEndTime = 0;
-        let lastTaskTime = 0;
-        let lastMultiplierSent = null;
-        let lastMissionSent = null;
-        const connectionTime = Date.now();  // track when this connection was established
-        const BATTLE_COOLDOWN = 15000;      // 15s cooldown after match end before allowing new match start
-        const MATCH_START_GRACE = 60000;    // 60s grace: ignore battleStatus 2 right after match start (stale data)
-        const CONNECT_GRACE = 30000;        // 30s grace: don't auto-detect battle from scores right after connect
-        const TASK_DEBOUNCE = 8000;         // 8s debounce between same-type announcements
-
-        tiktokConnection.on('linkMicBattle', (data) => {
-            const hasBattleUsers = data.battleUsers && data.battleUsers.length > 0;
-            const now = Date.now();
-
-            console.log(`[Battle] linkMicBattle — users: ${hasBattleUsers}, active: ${battleActive}, status: ${JSON.stringify(data.battleStatus)}`);
-
-            // Only trigger match start if not already in battle AND cooldown passed
-            if (hasBattleUsers && !battleActive && (now - lastBattleEndTime > BATTLE_COOLDOWN)) {
-                battleActive = true;
-                battleStartTime = now;
-                lastMultiplierSent = null;
-                lastMissionSent = null;
-                console.log(`[Battle] ✅ MATCH STARTED`);
-                ws.send(JSON.stringify({ type: 'battle_start' }));
-            }
-        });
-
-        tiktokConnection.on('linkMicArmies', (data) => {
-            const now = Date.now();
-
-            // Detect match end from battleStatus 2
-            if (data.battleStatus === 2) {
-                // Ignore stale end signals during grace period after match start
-                if (battleActive && (now - battleStartTime < MATCH_START_GRACE)) {
-                    console.log(`[Battle] ⏳ Ignoring battleStatus 2 (grace period — ${Math.round((now - battleStartTime) / 1000)}s after start)`);
-                    return;
-                }
-                if (battleActive) {
-                    battleActive = false;
-                    lastBattleEndTime = now;
-                    lastMultiplierSent = null;
-                    lastMissionSent = null;
-                    console.log(`[Battle] ❌ MATCH ENDED`);
-                    ws.send(JSON.stringify({ type: 'battle_end' }));
-                    return;
-                }
-                return;
-            }
-
-            // Suppress spam: only forward if armies have actual score data
-            if (!data.battleArmies || data.battleArmies.length < 2) return;
-            const armies = data.battleArmies;
-            const scores = armies.map(a => a.points || 0);
-            if (scores.every(s => s === 0)) return;
-
-            // If we get live score data and battle isn't active, it means we missed the start
-            // BUT skip this during connect grace period (stale data from reconnect)
-            if (!battleActive && scores.some(s => s > 0)) {
-                if (now - connectionTime < CONNECT_GRACE) {
-                    console.log(`[Battle] ⏳ Ignoring scores (connect grace — ${Math.round((now - connectionTime) / 1000)}s after connect)`);
-                    // Don't set battleActive — let linkMicBattle handle the real start
-                } else {
-                    battleActive = true;
-                    battleStartTime = now;
-                    lastMultiplierSent = null;
-                    lastMissionSent = null;
-                    console.log(`[Battle] ✅ MATCH STARTED (detected from live scores)`);
-                    ws.send(JSON.stringify({ type: 'battle_start' }));
-                }
-            }
-
-            ws.send(JSON.stringify({
-                type: 'battle_update',
-                scores: scores,
-            }));
-        });
-
-        // Catch-all: process battle-related raw events
-        tiktokConnection.on('rawData', (messageTypeName, binary) => {
-            // Skip high-frequency known events
-            if (['WebcastChatMessage', 'WebcastGiftMessage', 'WebcastMemberMessage', 'WebcastSocialMessage',
-                 'WebcastRoomUserSeqMessage', 'WebcastControlMessage', 'WebcastLinkMicBattle',
-                 'WebcastLinkMicArmies', 'WebcastLikeMessage', 'WebcastLinkMicOpponentGifts',
-                 'WebcastGiftPanelUpdateMessage', 'WebcastBarrageMessage'].includes(messageTypeName)) return;
-
-            console.log(`[RawData] Event type: ${messageTypeName}`);
-
-            // Battle Task = missions and multiplier info
-            if (messageTypeName === 'WebcastLinkmicBattleTaskMessage') {
-                try {
-                    const now = Date.now();
-                    const text = binary.toString('utf-8').replace(/[^\x20-\x7E\u0590-\u05FF\u0600-\u06FF]/g, ' ').replace(/\s+/g, ' ').trim();
-                    console.log(`[BattleTask] Raw: ${text.substring(0, 400)}`);
-
-                    // Check for gifter pattern first — if present, the message is a MISSION
-                    // "instructions_1 multi 2" + "gifter_1 multi 3" = "3 gifters needed to unlock double"
-                    // The multiplier in instructions_1 is the REWARD, not an active multiplier
-                    const gifterMatch = text.match(/gifter_\d+\s+multi\s+(\d+)/);
-                    const multiplierMatch = text.match(/instructions_\d+\s+multi\s+(\d+)/);
-
-                    if (gifterMatch) {
-                        // It's a gifter mission — multiplier is just the reward description
-                        const gifterCount = gifterMatch[1];
-                        const rewardNum = multiplierMatch ? parseInt(multiplierMatch[1]) : null;
-                        const reward = rewardNum === 2 ? 'כפול' : rewardNum === 3 ? 'משולש' : '';
-                        const missionKey = 'gifter_' + gifterCount + '_' + (rewardNum || '');
-                        // Announce if different from last OR if debounce expired (allows corrections)
-                        if (missionKey !== lastMissionSent || (now - lastTaskTime > TASK_DEBOUNCE)) {
-                            if (missionKey !== lastMissionSent) {
-                                lastTaskTime = now;
-                                lastMissionSent = missionKey;
-                                console.log(`[BattleTask] ✅ Gifter mission: ${gifterCount} users need to gift → unlock ${reward || '?'}`);
-                                ws.send(JSON.stringify({
-                                    type: 'battle_mission',
-                                    missionType: 'gifter',
-                                    gifterCount: gifterCount,
-                                    reward: reward,
-                                }));
-                            }
-                        }
-                    } else if (multiplierMatch) {
-                        // No gifter context — multiplier is actually ACTIVE
-                        const num = parseInt(multiplierMatch[1]);
-                        const multiplier = num === 2 ? 'double' : num === 3 ? 'triple' : null;
-                        if (multiplier && multiplier !== lastMultiplierSent) {
-                            lastTaskTime = now;
-                            lastMultiplierSent = multiplier;
-                            console.log(`[BattleTask] ✅ Multiplier ACTIVE: ${multiplier}`);
-                            ws.send(JSON.stringify({
-                                type: 'battle_multiplier',
-                                multiplier: multiplier,
-                            }));
-                        }
-                    }
-
-                    // Pattern: "sum N" — accumulation challenge (e.g., ice challenge, need N total points)
-                    const sumMatch = text.match(/sum\s+(\d+)/);
-                    if (sumMatch) {
-                        const sumTarget = sumMatch[1];
-                        const missionKey = 'sum_' + sumTarget;
-                        if (missionKey !== lastMissionSent) {
-                            lastTaskTime = now;
-                            lastMissionSent = missionKey;
-                            console.log(`[BattleTask] ✅ Challenge target: ${sumTarget} points`);
-                            ws.send(JSON.stringify({
-                                type: 'battle_mission',
-                                missionType: 'score',
-                                score: sumTarget,
-                            }));
-                        }
-                    }
-                } catch (e) {
-                    console.error(`[BattleTask] Parse error:`, e.message);
-                }
-            }
+            send(payload);
         });
 
         // Auto-reconnect on disconnect
-        tiktokConnection.on('disconnected', () => {
+        connection.on(ControlEvent.DISCONNECTED, () => {
             console.log('[TikTok] Disconnected from livestream');
             if (!manualDisconnect) {
-                ws.send(JSON.stringify({ type: 'status', message: 'Connection lost. Attempting to reconnect...' }));
+                send({ type: 'status', message: 'Connection lost. Attempting to reconnect...' });
                 scheduleReconnect(username);
             } else {
-                ws.send(JSON.stringify({
-                    type: 'error',
-                    message: 'Disconnected from livestream'
-                }));
+                send({ type: 'error', message: 'Disconnected from livestream' });
             }
         });
 
-        tiktokConnection.on('streamEnd', (actionId) => {
-            console.log(`[TikTok] Stream ended (action: ${actionId})`);
+        connection.on(WebcastEvent.STREAM_END, (event) => {
+            console.log(`[TikTok] Stream ended (action: ${event && event.action})`);
             manualDisconnect = true; // Don't reconnect if stream ended
-            ws.send(JSON.stringify({
-                type: 'error',
-                message: 'The livestream has ended.'
-            }));
+            send({ type: 'error', message: 'The livestream has ended.' });
         });
 
-        tiktokConnection.on('error', (err) => {
-            // Safely extract error info (err can contain circular refs)
-            const msg = (err.exception ? err.exception.message : err.message) || '';
-            const info = err.info || '';
-            const code = (err.exception && err.exception.code) || '';
-            console.error(`[TikTok] Error: [${info}] ${msg} ${code}`);
-            // Reconnect on websocket/network/SSL errors (not on "user not live" type errors)
-            const fullErr = `${info} ${msg} ${code}`;
-            if (!manualDisconnect && fullErr.match(/ECONNRESET|ETIMEDOUT|ECONNREFUSED|EPIPE|socket|websocket|network|SSL|bad record|tls/i)) {
+        connection.on(ControlEvent.ERROR, (err) => {
+            const message = (err && err.message) || 'Unknown error';
+            console.error(`[TikTok] Error: ${message}`);
+            // Reconnect on network-level errors; ignore decode noise from unknown message types
+            if (!manualDisconnect && /ECONNRESET|ETIMEDOUT|ECONNREFUSED|EPIPE|socket|websocket|network|SSL|bad record|tls/i.test(message)) {
                 scheduleReconnect(username);
             }
         });
     }
 
-    function scheduleReconnect(username) {
+    function scheduleReconnect(username, overrideDelay) {
         // Prevent duplicate reconnect timers
         if (reconnectTimer) return;
 
         if (manualDisconnect || reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            ws.send(JSON.stringify({
-                type: 'error',
-                message: `Disconnected. All ${MAX_RECONNECT_ATTEMPTS} reconnect attempts failed. Click Connect to try again.`
-            }));
+            send({ type: 'error', message: `Disconnected. All ${MAX_RECONNECT_ATTEMPTS} reconnect attempts failed. Click Connect to try again.` });
             return;
         }
-        const delay = RECONNECT_DELAYS[Math.min(reconnectAttempts, RECONNECT_DELAYS.length - 1)];
+        const delay = overrideDelay || RECONNECT_DELAYS[Math.min(reconnectAttempts, RECONNECT_DELAYS.length - 1)];
         reconnectAttempts++;
         console.log(`[TikTok] Reconnecting in ${delay / 1000}s... (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
-        ws.send(JSON.stringify({
+        send({
             type: 'reconnecting',
             attempt: reconnectAttempts,
             maxAttempts: MAX_RECONNECT_ATTEMPTS,
             delaySec: Math.round(delay / 1000),
-        }));
+        });
         reconnectTimer = setTimeout(() => {
             reconnectTimer = null;
             if (!manualDisconnect && ws.readyState === 1) {
@@ -511,17 +339,8 @@ wss.on('connection', (ws) => {
 
         if (data.type === 'connect') {
             currentUsername = data.username;
-            // Use session ID from client (localStorage) or fallback to env var
-            if (data.sessionId) {
-                currentSessionId = data.sessionId;
-                console.log('[TikTok] Using client-provided session ID');
-            }
             manualDisconnect = false;
             reconnectAttempts = 0;
-            usePollingFallback = false;
-            disableGiftInfo = false;
-            skipProxy = false;
-            wsUpgradeFailCount = 0;
             cachedRoomId = null;
             connectToTikTok(currentUsername);
         }
@@ -552,6 +371,11 @@ wss.on('connection', (ws) => {
 httpServer.listen(PORT, () => {
     console.log(`\n✅ TikTok Live Reader Server running!`);
     console.log(`📺 Open http://localhost:${PORT} in your browser\n`);
+
+    if (!SIGN_API_KEY) {
+        console.log('[Sign] No SIGN_API_KEY set — using anonymous signing (per-IP rate limits apply).');
+        console.log('[Sign] Get a free key at https://www.eulerstream.com and set SIGN_API_KEY to raise them.\n');
+    }
 
     // Test proxy on startup
     if (PROXY_URL) {

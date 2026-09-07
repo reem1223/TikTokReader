@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "https-proxy-agent": "^7.0.4",
-    "tiktok-live-connector": "^1.1.8",
+    "tiktok-live-connector": "^2.4.4",
     "ws": "^8.16.0"
   }
 }

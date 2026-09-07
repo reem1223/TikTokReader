@@ -650,75 +650,6 @@
         }
 
 
-        .match-panel {
-            width: 100%;
-            max-width: 600px;
-            background: #1a1a1a;
-            border: 1px solid #262626;
-            border-radius: 12px;
-            padding: 16px 20px;
-            margin-bottom: 20px;
-        }
-
-        .match-panel h3 {
-            font-size: 0.9rem;
-            color: #fe2c55;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .match-panel-body {
-            overflow: hidden;
-            max-height: 0;
-            opacity: 0;
-            transition: max-height 0.3s ease, opacity 0.2s ease, margin 0.3s ease;
-            margin-top: 0;
-        }
-
-        .match-panel-body.expanded {
-            max-height: 800px;
-            opacity: 1;
-            margin-top: 12px;
-        }
-
-        .match-panel .msg-template-row label {
-            color: #fe9a9a;
-        }
-
-        .match-panel .msg-template-row .hint code {
-            color: #fe2c55;
-        }
-
-        .comment-item.battle {
-            background: linear-gradient(135deg, #2a0a1a, #1a1a1a);
-            border: 1px solid #fe2c55;
-        }
-
-        .comment-item.battle.reading {
-            border-right: 3px solid #fe2c55;
-            border-left: none;
-        }
-
-        .battle-badge {
-            display: inline-block;
-            font-size: 0.65rem;
-            padding: 1px 6px;
-            border-radius: 4px;
-            margin-left: 6px;
-            font-weight: 600;
-            background: #2a0a1a;
-            color: #fe2c55;
-        }
-
-        .battle-text {
-            font-size: 0.95rem;
-            color: #fe9a9a;
-            direction: rtl;
-            text-align: right;
-        }
-
         .log-btn {
             padding: 8px 16px;
             border-radius: 20px;
@@ -856,7 +787,6 @@
         .log-entry-cat.chat { background: #1a2a3a; color: #60a5fa; }
         .log-entry-cat.gift { background: #2a1a2a; color: #f472b6; }
         .log-entry-cat.join { background: #1a2a1a; color: #4ade80; }
-        .log-entry-cat.battle { background: #2a1a1a; color: #fe2c55; }
 
         .log-count {
             font-size: 0.7rem;
@@ -1135,6 +1065,14 @@
                     </label>
                     <div class="toggle-tooltip">When off, emojis in comment text won't be read aloud.</div>
                 </div>
+                <div class="toggle-item">
+                    <span class="toggle-label" onclick="toggleTooltip(this)">🙈 Hide "user" Names</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggleSkipGenericNames" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <div class="toggle-tooltip">When on, auto-generated names like user40550754416165 aren't read aloud — only their message is. Real nicknames are unaffected.</div>
+                </div>
             </div>
             <div class="toggles-row">
                 <div class="toggle-item">
@@ -1164,6 +1102,16 @@
             </div>
         </div>
 
+        <div class="msg-template-row">
+            <label>💬 Comment (HE):</label>
+            <input type="text" id="commentMsgTemplate" value="<username> אומר: <comment>" dir="rtl" />
+            <div class="hint">Hebrew comment TTS. Use <code>&lt;username&gt;</code> and <code>&lt;comment&gt;</code></div>
+        </div>
+        <div class="msg-template-row">
+            <label>💬 Comment (EN):</label>
+            <input type="text" id="commentMsgTemplateEn" value="<username> says: <comment>" />
+            <div class="hint">English comment TTS. Use <code>&lt;username&gt;</code> and <code>&lt;comment&gt;</code></div>
+        </div>
         <div class="msg-template-row">
             <label>🎁 Gift (HE):</label>
             <input type="text" id="giftMsgTemplate" value="תודה <username> על ה<gift>" />
@@ -1208,91 +1156,6 @@
             <button class="log-btn" onclick="openEventLog()">
                 📋 Event Log
             </button>
-        </div>
-    </div>
-
-    <div class="match-panel">
-        <h3>⚔️ Match Manager <span style="font-size: 11px; color: #f5a623; font-weight: normal; margin-right: 6px;">Alpha stage - experimental</span></h3>
-        <div class="toggle-row">
-            <span>⚔️ Match Manager</span>
-            <label class="toggle-switch">
-                <input type="checkbox" id="toggleMatch" onchange="toggleMatchPanel()">
-                <span class="toggle-slider"></span>
-            </label>
-        </div>
-        <div class="match-panel-body" id="matchPanelBody">
-        <h4 style="color:#aaa;margin:0 0 8px;font-size:0.8rem;">🇮🇱 Hebrew</h4>
-        <div class="msg-template-row">
-            <label>🥊 התחלת מאבק:</label>
-            <input type="text" id="matchMsgStart" value="המאבק התחיל! קדימה שולחים מתנות" dir="rtl" />
-        </div>
-        <div class="msg-template-row">
-            <label>✌️ ניקוד כפול:</label>
-            <input type="text" id="matchMsgDouble" value="ניקוד כפול התחיל! כל מתנה שווה פי 2" dir="rtl" />
-        </div>
-        <div class="msg-template-row">
-            <label>🔥 ניקוד משולש:</label>
-            <input type="text" id="matchMsgTriple" value="ניקוד משולש! כל מתנה שווה פי 3" dir="rtl" />
-        </div>
-        <div class="msg-template-row">
-            <label>🥊 נשלח כפפה:</label>
-            <input type="text" id="matchMsgGlove" value="<username> שלח כפפה! המאבק מתחיל בקרוב" dir="rtl" />
-            <div class="hint">Use <code>&lt;username&gt;</code> for the sender's name</div>
-        </div>
-        <div class="msg-template-row">
-            <label>⏱️ 10 שניות אחרונות:</label>
-            <input type="text" id="matchMsgTimer10" value="נשארו 10 שניות! שולחים הכל עכשיו" dir="rtl" />
-        </div>
-        <div class="msg-template-row">
-            <label>🎯 משימת ניקוד:</label>
-            <input type="text" id="matchMsgMission" value="משימת לייב התחילה! צריך <score> נקודות לפתוח את הבונוס" dir="rtl" />
-            <div class="hint">Use <code>&lt;score&gt;</code> for the required score</div>
-        </div>
-        <div class="msg-template-row">
-            <label>🎁 משימת שולחים:</label>
-            <input type="text" id="matchMsgGifter" value="צריך <score> אנשים לשלוח מתנה כדי לפתוח ניקוד <reward>!" dir="rtl" />
-            <div class="hint">Use <code>&lt;score&gt;</code> for gifters needed, <code>&lt;reward&gt;</code> for the reward</div>
-        </div>
-        <div class="msg-template-row">
-            <label>🏁 סוף מאבק:</label>
-            <input type="text" id="matchMsgEnd" value="המאבק נגמר!" dir="rtl" />
-        </div>
-        <h4 style="color:#aaa;margin:12px 0 8px;font-size:0.8rem;">🇺🇸 English</h4>
-        <div class="msg-template-row">
-            <label>🥊 Battle Start:</label>
-            <input type="text" id="matchMsgStartEn" value="The battle has started! Send gifts now!" />
-        </div>
-        <div class="msg-template-row">
-            <label>✌️ Double Points:</label>
-            <input type="text" id="matchMsgDoubleEn" value="Double points activated! Every gift counts twice!" />
-        </div>
-        <div class="msg-template-row">
-            <label>🔥 Triple Points:</label>
-            <input type="text" id="matchMsgTripleEn" value="Triple points! Every gift counts three times!" />
-        </div>
-        <div class="msg-template-row">
-            <label>🥊 Glove Sent:</label>
-            <input type="text" id="matchMsgGloveEn" value="<username> sent a glove! Battle starting soon!" />
-            <div class="hint">Use <code>&lt;username&gt;</code> for the sender's name</div>
-        </div>
-        <div class="msg-template-row">
-            <label>⏱️ Last 10 Seconds:</label>
-            <input type="text" id="matchMsgTimer10En" value="10 seconds left! Send everything now!" />
-        </div>
-        <div class="msg-template-row">
-            <label>🎯 Score Mission:</label>
-            <input type="text" id="matchMsgMissionEn" value="Live mission started! Need <score> points to unlock the bonus!" />
-            <div class="hint">Use <code>&lt;score&gt;</code> for the required score</div>
-        </div>
-        <div class="msg-template-row">
-            <label>🎁 Gifter Mission:</label>
-            <input type="text" id="matchMsgGifterEn" value="Need <score> people to gift to unlock <reward> points!" />
-            <div class="hint">Use <code>&lt;score&gt;</code> for gifters needed, <code>&lt;reward&gt;</code> for the reward</div>
-        </div>
-        <div class="msg-template-row">
-            <label>🏁 Battle End:</label>
-            <input type="text" id="matchMsgEndEn" value="The battle is over!" />
-        </div>
         </div>
     </div>
 
@@ -1466,6 +1329,9 @@
                 voiceEn: document.getElementById('voiceEn').value,
                 rateEn: document.getElementById('rateRangeEn').value,
                 rateHe: document.getElementById('rateRangeHe').value,
+                commentMsg: document.getElementById('commentMsgTemplate').value,
+                commentMsgEn: document.getElementById('commentMsgTemplateEn').value,
+                toggleSkipGenericNames: document.getElementById('toggleSkipGenericNames').checked,
                 giftMsg: document.getElementById('giftMsgTemplate').value,
                 giftMsgEn: document.getElementById('giftMsgTemplateEn').value,
                 giftLang: document.getElementById('giftLang').value,
@@ -1482,23 +1348,6 @@
                 toggleFollowersOnly: document.getElementById('toggleFollowersOnly').checked,
                 toggleFansOnly: document.getElementById('toggleFansOnly').checked,
                 fanMinLevel: document.getElementById('fanMinLevel').value,
-                toggleMatch: document.getElementById('toggleMatch').checked,
-                matchMsgStart: document.getElementById('matchMsgStart').value,
-                matchMsgDouble: document.getElementById('matchMsgDouble').value,
-                matchMsgTriple: document.getElementById('matchMsgTriple').value,
-                matchMsgGlove: document.getElementById('matchMsgGlove').value,
-                matchMsgTimer10: document.getElementById('matchMsgTimer10').value,
-                matchMsgMission: document.getElementById('matchMsgMission').value,
-                matchMsgGifter: document.getElementById('matchMsgGifter').value,
-                matchMsgEnd: document.getElementById('matchMsgEnd').value,
-                matchMsgStartEn: document.getElementById('matchMsgStartEn').value,
-                matchMsgDoubleEn: document.getElementById('matchMsgDoubleEn').value,
-                matchMsgTripleEn: document.getElementById('matchMsgTripleEn').value,
-                matchMsgGloveEn: document.getElementById('matchMsgGloveEn').value,
-                matchMsgTimer10En: document.getElementById('matchMsgTimer10En').value,
-                matchMsgMissionEn: document.getElementById('matchMsgMissionEn').value,
-                matchMsgGifterEn: document.getElementById('matchMsgGifterEn').value,
-                matchMsgEndEn: document.getElementById('matchMsgEndEn').value,
                 muted: isMuted,
                 toggleGiftEmojis: document.getElementById('toggleGiftEmojis').checked,
                 toggleJoinEmojis: document.getElementById('toggleJoinEmojis').checked,
@@ -1529,6 +1378,9 @@
                 document.getElementById('rateRangeHe').value = s.rateHe;
                 document.getElementById('speedValHe').textContent = s.rateHe + 'x';
             }
+            if (s.commentMsg !== undefined) document.getElementById('commentMsgTemplate').value = s.commentMsg;
+            if (s.commentMsgEn !== undefined) document.getElementById('commentMsgTemplateEn').value = s.commentMsgEn;
+            if (s.toggleSkipGenericNames !== undefined) document.getElementById('toggleSkipGenericNames').checked = s.toggleSkipGenericNames;
             if (s.giftMsg !== undefined) document.getElementById('giftMsgTemplate').value = s.giftMsg;
             if (s.giftMsgEn !== undefined) document.getElementById('giftMsgTemplateEn').value = s.giftMsgEn;
             if (s.giftLang !== undefined) document.getElementById('giftLang').value = s.giftLang;
@@ -1545,23 +1397,6 @@
             if (s.toggleFollowersOnly !== undefined) document.getElementById('toggleFollowersOnly').checked = s.toggleFollowersOnly;
             if (s.toggleFansOnly !== undefined) document.getElementById('toggleFansOnly').checked = s.toggleFansOnly;
             if (s.fanMinLevel !== undefined) document.getElementById('fanMinLevel').value = s.fanMinLevel;
-            if (s.toggleMatch !== undefined) document.getElementById('toggleMatch').checked = s.toggleMatch;
-            if (s.matchMsgStart !== undefined) document.getElementById('matchMsgStart').value = s.matchMsgStart;
-            if (s.matchMsgDouble !== undefined) document.getElementById('matchMsgDouble').value = s.matchMsgDouble;
-            if (s.matchMsgTriple !== undefined) document.getElementById('matchMsgTriple').value = s.matchMsgTriple;
-            if (s.matchMsgGlove !== undefined) document.getElementById('matchMsgGlove').value = s.matchMsgGlove;
-            if (s.matchMsgTimer10 !== undefined) document.getElementById('matchMsgTimer10').value = s.matchMsgTimer10;
-            if (s.matchMsgMission !== undefined) document.getElementById('matchMsgMission').value = s.matchMsgMission;
-            if (s.matchMsgGifter !== undefined) document.getElementById('matchMsgGifter').value = s.matchMsgGifter;
-            if (s.matchMsgEnd !== undefined) document.getElementById('matchMsgEnd').value = s.matchMsgEnd;
-            if (s.matchMsgStartEn !== undefined) document.getElementById('matchMsgStartEn').value = s.matchMsgStartEn;
-            if (s.matchMsgDoubleEn !== undefined) document.getElementById('matchMsgDoubleEn').value = s.matchMsgDoubleEn;
-            if (s.matchMsgTripleEn !== undefined) document.getElementById('matchMsgTripleEn').value = s.matchMsgTripleEn;
-            if (s.matchMsgGloveEn !== undefined) document.getElementById('matchMsgGloveEn').value = s.matchMsgGloveEn;
-            if (s.matchMsgTimer10En !== undefined) document.getElementById('matchMsgTimer10En').value = s.matchMsgTimer10En;
-            if (s.matchMsgMissionEn !== undefined) document.getElementById('matchMsgMissionEn').value = s.matchMsgMissionEn;
-            if (s.matchMsgGifterEn !== undefined) document.getElementById('matchMsgGifterEn').value = s.matchMsgGifterEn;
-            if (s.matchMsgEndEn !== undefined) document.getElementById('matchMsgEndEn').value = s.matchMsgEndEn;
             if (s.toggleGiftEmojis !== undefined) document.getElementById('toggleGiftEmojis').checked = s.toggleGiftEmojis;
             if (s.toggleJoinEmojis !== undefined) document.getElementById('toggleJoinEmojis').checked = s.toggleJoinEmojis;
             if (s.toggleCommentNameEmojis !== undefined) document.getElementById('toggleCommentNameEmojis').checked = s.toggleCommentNameEmojis;
@@ -1572,17 +1407,6 @@
                 btn.textContent = '🔇 Muted';
                 btn.classList.add('muted');
             }
-        }
-
-        function toggleMatchPanel() {
-            const body = document.getElementById('matchPanelBody');
-            const isOn = document.getElementById('toggleMatch').checked;
-            if (isOn) {
-                body.classList.add('expanded');
-            } else {
-                body.classList.remove('expanded');
-            }
-            saveSettings();
         }
 
         // Populate English voice dropdown
@@ -1614,7 +1438,6 @@
 
             // Apply saved settings (overrides defaults)
             applySettings();
-            toggleMatchPanel();
         }
 
         speechSynthesis.onvoiceschanged = loadVoices;
@@ -1649,7 +1472,7 @@
             const voices = speechSynthesis.getVoices();
             const idx = document.getElementById('voiceEn').value;
             if (voices[idx]) utterance.voice = voices[idx];
-            utterance.rate = parseFloat(document.getElementById('rateRange').value);
+            utterance.rate = parseFloat(document.getElementById('rateRangeEn').value);
             speechSynthesis.speak(utterance);
         }
 
@@ -1657,7 +1480,7 @@
         async function testHebrewVoice() {
             try {
                 const audio = await fetchServerTTS('שלום, זהו מבחן קול', 'he');
-                playBase64Audio(audio, parseFloat(document.getElementById('rateRange').value));
+                playBase64Audio(audio, parseFloat(document.getElementById('rateRangeHe').value));
             } catch (e) {
                 alert('Hebrew TTS test failed: ' + e.message);
             }
@@ -1775,36 +1598,10 @@
 
                 if (data.type === 'gift') {
                     addGift(data.user, data.giftName, data.giftCount, data.giftPictureUrl, data.displayName);
-                    // Detect glove gift for Match Manager
-                    const gloveName = (data.giftName || '').toLowerCase();
-                    if (gloveName.includes('glove') || gloveName.includes('boxing') || gloveName.includes('כפפ')) {
-                        addBattleEvent('glove', data.user);
-                    }
                 }
 
                 if (data.type === 'member') {
                     addJoin(data.user, data.displayName);
-                }
-
-                // Match Manager events
-                if (data.type === 'battle_start') {
-                    addBattleEvent('start');
-                }
-
-                if (data.type === 'battle_multiplier') {
-                    addBattleEvent(data.multiplier); // 'double' or 'triple'
-                }
-
-                if (data.type === 'battle_mission') {
-                    if (data.missionType === 'gifter') {
-                        addBattleEvent('gifter_mission', null, data.gifterCount || '?', data.reward || '');
-                    } else {
-                        addBattleEvent('mission', null, data.score || '???');
-                    }
-                }
-
-                if (data.type === 'battle_end') {
-                    addBattleEvent('end');
                 }
 
                 if (data.type === 'reconnecting') {
@@ -1858,81 +1655,6 @@
             document.getElementById('connectBtn').disabled = false;
             document.getElementById('connectBtn').style.display = 'inline-block';
             document.getElementById('disconnectBtn').style.display = 'none';
-        }
-
-        function addBattleEvent(eventType, user, score, reward) {
-            if (!document.getElementById('toggleMatch').checked) return;
-            logEvent('battle', user || '', `${eventType}${score ? ' ' + score : ''}${reward ? ' → ' + reward : ''}`, {});
-
-            const hebrewOn = document.getElementById('toggleHebrew').checked;
-
-            const templates = hebrewOn ? {
-                start: document.getElementById('matchMsgStart').value || 'המאבק התחיל!',
-                double: document.getElementById('matchMsgDouble').value || 'ניקוד כפול התחיל!',
-                triple: document.getElementById('matchMsgTriple').value || 'ניקוד משולש!',
-                glove: document.getElementById('matchMsgGlove').value || '<username> שלח כפפה!',
-                timer10: document.getElementById('matchMsgTimer10').value || 'נשארו 10 שניות!',
-                mission: document.getElementById('matchMsgMission').value || 'משימת לייב התחילה! צריך <score> נקודות',
-                gifter_mission: document.getElementById('matchMsgGifter').value || 'צריך <score> אנשים לשלוח מתנה כדי לפתוח ניקוד <reward>!',
-                end: document.getElementById('matchMsgEnd').value || 'המאבק נגמר!',
-            } : {
-                start: document.getElementById('matchMsgStartEn').value || 'The battle has started!',
-                double: document.getElementById('matchMsgDoubleEn').value || 'Double points activated!',
-                triple: document.getElementById('matchMsgTripleEn').value || 'Triple points!',
-                glove: document.getElementById('matchMsgGloveEn').value || '<username> sent a glove!',
-                timer10: document.getElementById('matchMsgTimer10En').value || '10 seconds left!',
-                mission: document.getElementById('matchMsgMissionEn').value || 'Need <score> points to unlock the bonus!',
-                gifter_mission: document.getElementById('matchMsgGifterEn').value || 'Need <score> people to gift to unlock <reward> points!',
-                end: document.getElementById('matchMsgEndEn').value || 'The battle is over!',
-            };
-
-            const labels = hebrewOn ? {
-                start: '🥊 מאבק',
-                double: '✌️ כפול',
-                triple: '🔥 משולש',
-                glove: '🥊 כפפה',
-                timer10: '⏱️ 10 שניות',
-                mission: '🎯 משימה',
-                gifter_mission: '🎁 משימה',
-                end: '🏁 סיום',
-            } : {
-                start: '🥊 Battle',
-                double: '✌️ Double',
-                triple: '🔥 Triple',
-                glove: '🥊 Glove',
-                timer10: '⏱️ 10 sec',
-                mission: '🎯 Mission',
-                gifter_mission: '🎁 Mission',
-                end: '🏁 End',
-            };
-
-            let msg = templates[eventType] || '';
-            if (user) msg = msg.replace(/<username>/gi, user);
-            if (score) msg = msg.replace(/<score>/gi, score);
-            if (reward) msg = msg.replace(/<reward>/gi, reward);
-
-            const ttsLang = hebrewOn ? 'he' : 'en';
-
-            commentCount++;
-            document.getElementById('commentCount').textContent = commentCount;
-
-            const list = document.getElementById('commentsList');
-            const item = document.createElement('div');
-            item.className = 'comment-item battle' + (hebrewOn ? ' rtl' : '');
-
-            const badgeLabel = labels[eventType] || (hebrewOn ? '⚔️ מאבק' : '⚔️ Battle');
-            item.innerHTML = `
-                <div class="comment-user"><span class="battle-badge">${badgeLabel}</span></div>
-                <div class="battle-text">${escapeHtml(msg)}</div>
-                <div class="comment-time">${new Date().toLocaleTimeString()}</div>
-            `;
-            list.appendChild(item);
-            list.scrollTop = list.scrollHeight;
-
-            if (!isMuted) {
-                speechQueue.push({ user: '', text: msg, lang: ttsLang, isGift: true, element: item });
-                processQueue();
-            }
         }
 
         // Hebrew gift name dictionary
@@ -2303,6 +2025,24 @@
             }
         }
 
+        // Auto-generated TikTok handles like "user40550754416165" — no real name to read
+        function isGenericUsername(name) {
+            return /^user[._-]?\d{4,}$/i.test(String(name || '').trim().replace(/^@/, ''));
+        }
+
+        // Builds the spoken sentence for a comment from the user's editable template
+        function buildCommentSpeech(user, text, lang) {
+            const isHe = lang === 'he';
+            // Auto-generated names are noise, so read the message on its own
+            if (document.getElementById('toggleSkipGenericNames').checked && isGenericUsername(user)) {
+                return text;
+            }
+            const input = document.getElementById(isHe ? 'commentMsgTemplate' : 'commentMsgTemplateEn');
+            const fallback = isHe ? '<username> אומר: <comment>' : '<username> says: <comment>';
+            const template = (input && input.value.trim()) || fallback;
+            return template.replace(/<username>/gi, user).replace(/<comment>/gi, text);
+        }
+
         // Click on a message to read it aloud (bypasses mute/toggles)
         async function readItemAloud(user, text, lang, element, isGift) {
             // Cancel current speech
@@ -2323,7 +2063,7 @@
 
             if (lang === 'he') {
                 try {
-                    const fullText = isGift ? text : `${user} אומר: ${text}`;
+                    const fullText = isGift ? text : buildCommentSpeech(user, text, 'he');
                     const audio = await fetchServerTTS(fullText, 'he');
                     playBase64Audio(audio, rate, done);
                 } catch (e) {
@@ -2331,7 +2071,7 @@
                     done();
                 }
             } else {
-                const fullText = isGift ? text : `${user} says: ${text}`;
+                const fullText = isGift ? text : buildCommentSpeech(user, text, 'en');
                 const utterance = new SpeechSynthesisUtterance(fullText);
                 const voices = speechSynthesis.getVoices();
                 const idx = document.getElementById('voiceEn').value;
@@ -2362,7 +2102,7 @@
             if (lang === 'he') {
                 // Hebrew: use server-side Google Translate TTS
                 try {
-                    const fullText = isGift ? text : `${user} אומר: ${text}`;
+                    const fullText = isGift ? text : buildCommentSpeech(user, text, 'he');
                     const audio = await fetchServerTTS(fullText, 'he');
                     playBase64Audio(audio, rate, done);
                 } catch (e) {
@@ -2371,7 +2111,7 @@
                 }
             } else {
                 // English: use browser SpeechSynthesis
-                const fullText = isGift ? text : `${user} says: ${text}`;
+                const fullText = isGift ? text : buildCommentSpeech(user, text, 'en');
                 const utterance = new SpeechSynthesisUtterance(fullText);
                 const voices = speechSynthesis.getVoices();
                 const idx = document.getElementById('voiceEn').value;
@@ -2415,6 +2155,9 @@
         document.getElementById('voiceEn').addEventListener('change', saveSettings);
         document.getElementById('rateRangeEn').addEventListener('input', saveSettings);
         document.getElementById('rateRangeHe').addEventListener('input', saveSettings);
+        document.getElementById('commentMsgTemplate').addEventListener('input', saveSettings);
+        document.getElementById('commentMsgTemplateEn').addEventListener('input', saveSettings);
+        document.getElementById('toggleSkipGenericNames').addEventListener('change', saveSettings);
         document.getElementById('giftMsgTemplate').addEventListener('input', saveSettings);
         document.getElementById('giftMsgTemplateEn').addEventListener('input', saveSettings);
         document.getElementById('giftLang').addEventListener('change', saveSettings);
@@ -2431,23 +2174,6 @@
         document.getElementById('toggleFollowersOnly').addEventListener('change', saveSettings);
         document.getElementById('toggleFansOnly').addEventListener('change', saveSettings);
         document.getElementById('fanMinLevel').addEventListener('input', saveSettings);
-        document.getElementById('toggleMatch').addEventListener('change', saveSettings);
-        document.getElementById('matchMsgStart').addEventListener('input', saveSettings);
-        document.getElementById('matchMsgDouble').addEventListener('input', saveSettings);
-        document.getElementById('matchMsgTriple').addEventListener('input', saveSettings);
-        document.getElementById('matchMsgGlove').addEventListener('input', saveSettings);
-        document.getElementById('matchMsgTimer10').addEventListener('input', saveSettings);
-        document.getElementById('matchMsgMission').addEventListener('input', saveSettings);
-        document.getElementById('matchMsgGifter').addEventListener('input', saveSettings);
-        document.getElementById('matchMsgEnd').addEventListener('input', saveSettings);
-        document.getElementById('matchMsgStartEn').addEventListener('input', saveSettings);
-        document.getElementById('matchMsgDoubleEn').addEventListener('input', saveSettings);
-        document.getElementById('matchMsgTripleEn').addEventListener('input', saveSettings);
-        document.getElementById('matchMsgGloveEn').addEventListener('input', saveSettings);
-        document.getElementById('matchMsgTimer10En').addEventListener('input', saveSettings);
-        document.getElementById('matchMsgMissionEn').addEventListener('input', saveSettings);
-        document.getElementById('matchMsgGifterEn').addEventListener('input', saveSettings);
-        document.getElementById('matchMsgEndEn').addEventListener('input', saveSettings);
 
         // ===== EVENT LOG SYSTEM =====
         const LOG_MAX = 1000;
@@ -2519,8 +2245,8 @@
                 return true;
             });
 
-            const catLabels = { chat: '💬', gift: '🎁', join: '👋', battle: '⚔️' };
-            const catClasses = { chat: 'chat', gift: 'gift', join: 'join', battle: 'battle' };
+            const catLabels = { chat: '💬', gift: '🎁', join: '👋' };
+            const catClasses = { chat: 'chat', gift: 'gift', join: 'join' };
 
             // Render most recent first (reversed)
             list.innerHTML = filtered.slice().reverse().map(e => {
